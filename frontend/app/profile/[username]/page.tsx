@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter, notFound } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { fetchProfile, getStoredUser, type User, type UserProfile } from "@/lib/api";
 import Navbar from "@/components/Navbar";
 import MobileNav from "@/components/MobileNav";
@@ -100,7 +100,7 @@ const DEMO_POSTS: Record<string, any[]> = {
 export default function ProfilePage() {
   const params = useParams();
   const router = useRouter();
-  const slug = params.slug as string;
+  const username = params.username as string;
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -112,9 +112,7 @@ export default function ProfilePage() {
   }, [router]);
 
   useEffect(() => {
-    if (!slug?.startsWith("@")) return;
-
-    const username = slug.slice(1);
+    if (!username) return;
 
     async function load() {
       setLoading(true);
@@ -133,15 +131,10 @@ export default function ProfilePage() {
     }
 
     load();
-  }, [slug]);
+  }, [username]);
 
   if (!user) return null;
 
-  if (!slug?.startsWith("@")) {
-    notFound();
-  }
-
-  const username = slug.slice(1);
   const posts = DEMO_POSTS[username] ?? [];
 
   return (
