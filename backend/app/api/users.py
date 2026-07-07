@@ -4,9 +4,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 
-from database import get_db, User, Follow, Karma
-from app.core.deps import get_current_active_user
-from app.schemas.auth import UserResponse, UserUpdate
+from database import get_db, User, Follow, Karma, Post
+from app.core.deps import get_current_active_user, get_optional_user
+from app.schemas.auth import UserResponse, UserUpdate, ProfileResponse
 from app.schemas.misc import KarmaResponse
 from app.utils.helpers import sanitize_content, validate_url, update_karma
 from app.services.upload import save_upload_file
@@ -116,6 +116,46 @@ async def get_user_by_id(
     if not user or user.is_banned:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return user
+
+
+@router.get("/by-username/{username}", response_model=ProfileResponse)
+async def get_user_by_username(
+    username: str,
+    db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_optional_user),
+):
+    user = db.query(User).filter(User.username == username).first()
+    if not user or user.is_banned:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    follower_count = db.query(Follow).filter(Follow.followed_id == user.id).count()
+    following_count = db.query(Follow).filter(Follow.follower_id == user.id).count()
+    post_count = db.query(Post).filter(Post.user_id == user.id).count()
+
+    is_following = False
+    if current_user and current_user.id != user.id:
+        follow = (
+            db.query(Follow)
+            .filter(Follow.follower_id == current_user.id, Follow.followed_id == user.id)
+            .first()
+        )
+        is_following = follow is not None
+
+    return ProfileResponse(
+        id=user.id,
+        username=user.username,
+        display_name=user.display_name,
+        avatar_url=user.avatar_url,
+        banner_url=user.banner_url,
+        bio=user.bio,
+        is_verified=user.is_verified,
+        follower_count=follower_count,
+        following_count=following_count,
+        post_count=post_count,
+        is_following=is_following,
+        is_own_profile=current_user is not None and current_user.id == user.id,
+        created_at=user.created_at,
+    )
 
 
 @router.post("/{user_id}/follow")

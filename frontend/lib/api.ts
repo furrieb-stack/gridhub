@@ -115,3 +115,33 @@ export function getStoredUser(): User | null {
   const raw = localStorage.getItem("user");
   return raw ? JSON.parse(raw) : null;
 }
+
+export interface UserProfile {
+  id: number;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  banner_url: string | null;
+  bio: string | null;
+  is_verified: boolean;
+  follower_count: number;
+  following_count: number;
+  post_count: number;
+  is_following: boolean;
+  is_own_profile: boolean;
+  created_at: string;
+}
+
+export async function fetchProfile(username: string): Promise<UserProfile> {
+  const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE}/users/by-username/${username}`, { headers });
+
+  if (!res.ok) {
+    throw new ApiError("User not found", res.status);
+  }
+
+  return res.json();
+}

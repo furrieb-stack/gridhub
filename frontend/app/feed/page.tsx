@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getStoredUser, clearTokens, type User } from "@/lib/api";
+import { getStoredUser, type User } from "@/lib/api";
 import Navbar from "@/components/Navbar";
+import MobileNav from "@/components/MobileNav";
 import Stories from "@/components/Stories";
 import Post from "@/components/Post";
 
@@ -18,7 +19,7 @@ const DEMO_POSTS = [
   {
     author: { username: "ann_dev", display_name: "Ann Developer", avatar_url: null, is_verified: false },
     content: "Hot take: FastAPI is the best thing that happened to Python backend development since... ever? The automatic OpenAPI docs alone save me hours of work every week.",
-    image: "https://picsum.photos/seed/pyth/640/360",
+    images: ["https://picsum.photos/seed/pyth/640/360"],
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
     upvotes: 89,
     comments_count: 12,
@@ -26,6 +27,11 @@ const DEMO_POSTS = [
   {
     author: { username: "gridhub", display_name: "Gridhub", avatar_url: null, is_verified: true },
     content: "Welcome to Gridhub — a new social network for developers. Build your community, share knowledge, and connect with fellow devs around the world.\n\nWhat would you like to see here first?",
+    images: [
+      "https://picsum.photos/seed/grid1/640/360",
+      "https://picsum.photos/seed/grid2/640/360",
+      "https://picsum.photos/seed/grid3/640/360",
+    ],
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
     upvotes: 1204,
     comments_count: 156,
@@ -33,10 +39,23 @@ const DEMO_POSTS = [
   {
     author: { username: "rustacean", display_name: "🦀 Rust Dev", avatar_url: null, is_verified: false },
     content: "Been rewriting our Python microservice in Rust over the weekend... 10x performance improvement and zero memory leaks so far. This language is something else.",
-    image: "https://picsum.photos/seed/rust/640/360",
+    images: ["https://picsum.photos/seed/rust/640/360"],
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
     upvotes: 567,
     comments_count: 43,
+  },
+  {
+    author: { username: "photo_dump", display_name: "Photo Dump", avatar_url: null, is_verified: false },
+    content: "Some shots from today's hike 🏔️",
+    images: [
+      "https://picsum.photos/seed/hike1/640/360",
+      "https://picsum.photos/seed/hike2/640/360",
+      "https://picsum.photos/seed/hike3/640/360",
+      "https://picsum.photos/seed/hike4/640/360",
+    ],
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString(),
+    upvotes: 891,
+    comments_count: 67,
   },
 ];
 
@@ -50,18 +69,15 @@ export default function FeedPage() {
     else setUser(stored);
   }, [router]);
 
-  function handleLogout() {
-    clearTokens();
-    router.replace("/login");
-  }
-
   if (!user) return null;
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#12110f" }}>
-      <Navbar />
+    <div className="min-h-screen pb-20 md:pb-0" style={{ backgroundColor: "#12110f" }}>
+      <div className="hidden md:block">
+        <Navbar />
+      </div>
 
-      <div className="ml-[240px] flex justify-center px-6 py-6">
+      <div className="md:ml-[250px] flex justify-center px-4 md:px-6 py-4 md:py-6">
         <div className="w-full max-w-[600px]">
           <div className="relative">
             <svg
@@ -99,6 +115,10 @@ export default function FeedPage() {
             ))}
           </div>
         </div>
+      </div>
+
+      <div className="block md:hidden">
+        <MobileNav />
       </div>
     </div>
   );

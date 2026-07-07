@@ -55,31 +55,26 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative flex h-screen items-center justify-center p-4 overflow-hidden">
-      <div
-        className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/3 rounded-full pointer-events-none"
-        style={{
-          width: 420,
-          height: 420,
-          background: "#FFD190",
-          filter: "blur(250px)",
-          opacity: 0.2,
-        }}
+    <div className="relative flex h-screen items-center justify-center p-4 overflow-hidden bg-[#12110f]">
+      {/* Мягкое широкое свечение сверху */}
+      <div 
+        className="absolute top-[-150px] left-1/2 -translate-x-1/2 w-[80vw] max-w-[800px] h-[300px] bg-[#FFD190] opacity-20 blur-[120px] rounded-full pointer-events-none"
       />
       <div className="noise-overlay" />
+      
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-[340px]"
+        className="relative z-10 w-full max-w-[340px]"
       >
         <div className="flex items-center gap-2 mb-3">
           <Image src="/favicon.svg" alt="Gridhub" width={28} height={28} />
           <h1 className="text-[34px] font-bold">
-            <span className="text-yellow">Grid</span>
+            <span className="text-[#FFD190]">Grid</span>
             <span className="text-white">hub</span>
           </h1>
         </div>
 
-        <p className="text-muted text-[15px] mb-[30px]">
+        <p className="text-white/40 text-[15px] mb-[30px]">
           Sign in to your account
         </p>
 
@@ -88,41 +83,41 @@ export default function LoginPage() {
         )}
 
         <div className="flex flex-col gap-[10px]">
-          <label className="text-muted-light text-[14px]">Username</label>
+          <label className="text-white/60 text-[14px]">Username</label>
           <input
             type="text"
             placeholder="Username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             required
-            className="w-full h-12 px-[18px] bg-surface border border-border rounded-[16px] text-white text-[15px] outline-none transition-[border-color] duration-200 placeholder:text-muted-dark focus:border-yellow"
+            className="w-full h-12 px-[18px] bg-white/[0.02] border border-white/[0.06] rounded-[16px] text-white text-[15px] outline-none transition-[border-color] duration-200 placeholder:text-white/20 focus:border-[#FFD190]/50"
           />
 
-          <label className="text-muted-light text-[14px]">Password</label>
+          <label className="text-white/60 text-[14px] mt-2">Password</label>
           <input
             type="password"
             placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            className="w-full h-12 px-[18px] bg-surface border border-border rounded-[16px] text-white text-[15px] outline-none transition-[border-color] duration-200 placeholder:text-muted-dark focus:border-yellow"
+            className="w-full h-12 px-[18px] bg-white/[0.02] border border-white/[0.06] rounded-[16px] text-white text-[15px] outline-none transition-[border-color] duration-200 placeholder:text-white/20 focus:border-[#FFD190]/50"
           />
         </div>
 
         <button
           type="submit"
           disabled={loading || !canSubmit}
-          className="w-full h-12 mt-6 border-none rounded-[16px] bg-yellow text-dark text-[15px] font-bold cursor-pointer transition-all duration-200 hover:brightness-110 active:scale-[.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100 disabled:active:scale-100"
+          className="w-full h-12 mt-6 border-none rounded-[16px] bg-[#FFD190] text-[#12110f] text-[15px] font-bold cursor-pointer transition-all duration-200 hover:bg-[#ffe3bc] active:scale-[.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
         >
           {loading ? "Signing in..." : "Login"}
         </button>
 
         <div className="relative my-6">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-border" />
+            <div className="w-full border-t border-white/[0.06]" />
           </div>
           <div className="relative flex justify-center">
-            <span className="bg-dark px-3 text-muted-dark text-[12px] font-medium uppercase tracking-wider">
+            <span className="bg-[#12110f] px-3 text-white/40 text-[12px] font-medium uppercase tracking-wider">
               Or continue with
             </span>
           </div>
@@ -137,7 +132,7 @@ export default function LoginPage() {
           >
             <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-gradient-to-r from-transparent via-black/[0.02] to-transparent" />
             {oauthLoading === "google" ? (
-              <span className="text-muted-dark">Connecting...</span>
+              <span className="text-black/40">Connecting...</span>
             ) : (
               <>
                 <svg width="20" height="20" viewBox="0 0 48 48">
@@ -162,21 +157,18 @@ export default function LoginPage() {
               <span>Connecting...</span>
             ) : (
               <>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="11" fill="white"/>
-                  <path d="M10.5 6.5h-3l-3 10h2.5l1-3.5h4l1 3.5h2.5l-3-10h-2zm-.5 4.5L11 8l1 3H10z" fill="#FC3F1D"/>
-                </svg>
+                <Image src="/yandex.svg" alt="Yandex" width={20} height={20} />
                 <span>Sign in with Yandex</span>
               </>
             )}
           </button>
         </div>
 
-        <p className="mt-[18px] text-center text-muted text-[14px]">
+        <p className="mt-[18px] text-center text-white/40 text-[14px]">
           Don&apos;t have an account?{" "}
           <Link
             href="/register"
-            className="text-yellow font-bold no-underline transition-colors duration-200 hover:text-yellow-hover"
+            className="text-[#FFD190] font-bold no-underline transition-colors duration-200 hover:text-[#ffe3bc]"
           >
             Register
           </Link>

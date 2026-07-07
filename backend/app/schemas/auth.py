@@ -109,6 +109,25 @@ class OAuthSetupRequest(BaseModel):
         return v
 
 
+class ProfileResponse(BaseModel):
+    id: int
+    username: str
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    banner_url: Optional[str] = None
+    bio: Optional[str] = None
+    is_verified: bool
+    follower_count: int = 0
+    following_count: int = 0
+    post_count: int = 0
+    is_following: bool = False
+    is_own_profile: bool = False
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class OAuthSetupResponse(BaseModel):
     access_token: str
     token_type: str

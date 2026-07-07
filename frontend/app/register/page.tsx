@@ -18,7 +18,7 @@ const LEVEL_COLORS: Record<PasswordStrength["level"], string> = {
   "too-short": "bg-red-500",
   weak: "bg-red-500",
   medium: "bg-orange-400",
-  good: "bg-yellow",
+  good: "bg-[#FFD190]",
   strong: "bg-green-400",
 };
 
@@ -28,12 +28,12 @@ function PasswordBar({ strength }: { strength: PasswordStrength }) {
   const color = LEVEL_COLORS[strength.level];
   const labelColor =
     strength.level === "good" || strength.level === "strong"
-      ? "text-yellow"
+      ? "text-[#FFD190]"
       : "text-red-400";
 
   return (
     <div className="mt-2">
-      <div className="h-1.5 rounded-full bg-border overflow-hidden">
+      <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
         <div
           className={`h-full rounded-full transition-all duration-300 ${color}`}
           style={{ width: `${strength.score}%` }}
@@ -102,36 +102,29 @@ export default function RegisterPage() {
 
   function inputClass(err: { ok: boolean } | null) {
     const base =
-      "w-full h-12 px-[18px] bg-surface border rounded-[16px] text-white text-[15px] outline-none transition-all duration-200 placeholder:text-muted-dark focus:shadow-[0_0_0_3px_rgba(255,209,144,0.1)]";
+      "w-full h-12 px-[18px] bg-white/[0.02] border rounded-[16px] text-white text-[15px] outline-none transition-all duration-200 placeholder:text-white/20 focus:shadow-[0_0_0_3px_rgba(255,209,144,0.1)]";
     if (err && !err.ok) {
       return `${base} border-red-500/40 focus:border-red-400`;
     }
-    return `${base} border-border focus:border-yellow`;
+    return `${base} border-white/[0.06] focus:border-[#FFD190]/50`;
   }
 
   return (
-    <div className="relative flex h-screen items-center justify-center p-4 overflow-hidden">
-      <div
-        className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/3 rounded-full pointer-events-none"
-        style={{
-          width: 420,
-          height: 420,
-          background: "#FFD190",
-          filter: "blur(250px)",
-          opacity: 0.2,
-        }}
+    <div className="relative flex h-screen items-center justify-center p-4 overflow-hidden bg-[#12110f]">
+      <div 
+        className="absolute top-[-150px] left-1/2 -translate-x-1/2 w-[80vw] max-w-[800px] h-[300px] bg-[#FFD190] opacity-20 blur-[120px] rounded-full pointer-events-none"
       />
       <div className="noise-overlay" />
-      <form onSubmit={handleSubmit} className="w-full max-w-[340px]">
+      <form onSubmit={handleSubmit} className="relative z-10 w-full max-w-[340px]">
         <div className="flex items-center gap-2 mb-3">
           <Image src="/favicon.svg" alt="Gridhub" width={28} height={28} />
           <h1 className="text-[34px] font-bold">
-            <span className="text-yellow">Grid</span>
+            <span className="text-[#FFD190]">Grid</span>
             <span className="text-white">hub</span>
           </h1>
         </div>
 
-        <p className="text-muted text-[15px] mb-[30px]">
+        <p className="text-white/40 text-[15px] mb-[30px]">
           Create your account
         </p>
 
@@ -140,7 +133,7 @@ export default function RegisterPage() {
         )}
 
         <div className="flex flex-col gap-[10px]">
-          <label className="text-muted-light text-[14px]">Username</label>
+          <label className="text-white/60 text-[14px]">Username</label>
           <input
             type="text"
             placeholder="Username"
@@ -154,7 +147,7 @@ export default function RegisterPage() {
             <p className="text-red-400 text-[12px] mt-[-6px]">{usernameErr.message}</p>
           )}
 
-          <label className="text-muted-light text-[14px]">Email</label>
+          <label className="text-white/60 text-[14px] mt-1">Email</label>
           <input
             type="email"
             placeholder="Email"
@@ -167,8 +160,8 @@ export default function RegisterPage() {
             <p className="text-red-400 text-[12px] mt-[-6px]">{emailErr.message}</p>
           )}
 
-          <label className="text-muted-light text-[14px]">
-            Display name <span className="text-muted-dark">(optional)</span>
+          <label className="text-white/60 text-[14px] mt-1">
+            Display name <span className="text-white/30">(optional)</span>
           </label>
           <input
             type="text"
@@ -182,7 +175,7 @@ export default function RegisterPage() {
             <p className="text-red-400 text-[12px] mt-[-6px]">{displayNameErr.message}</p>
           )}
 
-          <label className="text-muted-light text-[14px]">Password</label>
+          <label className="text-white/60 text-[14px] mt-1">Password</label>
           <input
             type="password"
             placeholder="Password"
@@ -222,16 +215,16 @@ export default function RegisterPage() {
         <button
           type="submit"
           disabled={loading || !canSubmit}
-          className="w-full h-12 mt-6 border-none rounded-[16px] bg-yellow text-dark text-[15px] font-bold cursor-pointer transition-all duration-200 hover:brightness-110 active:scale-[.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100 disabled:active:scale-100"
+          className="w-full h-12 mt-6 border-none rounded-[16px] bg-[#FFD190] text-[#12110f] text-[15px] font-bold cursor-pointer transition-all duration-200 hover:bg-[#ffe3bc] active:scale-[.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
         >
           {loading ? "Creating account..." : "Register"}
         </button>
 
-        <p className="mt-[18px] text-center text-muted text-[14px]">
+        <p className="mt-[18px] text-center text-white/40 text-[14px]">
           Already have an account?{" "}
           <Link
             href="/login"
-            className="text-yellow font-bold no-underline transition-colors duration-200 hover:text-yellow-hover"
+            className="text-[#FFD190] font-bold no-underline transition-colors duration-200 hover:text-[#ffe3bc]"
           >
             Sign in
           </Link>
