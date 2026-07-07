@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { clearTokens, getStoredUser, type User } from "@/lib/api";
 import Avatar from "@/components/Avatar";
+import NewPostModal from "@/components/NewPostModal";
 
 interface NavItem {
   label: string;
@@ -72,6 +73,7 @@ export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [newPostOpen, setNewPostOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -96,7 +98,6 @@ export default function Navbar() {
   }
 
   const displayName = user?.display_name ?? user?.username ?? "You";
-  const initial = displayName.charAt(0).toUpperCase();
 
   return (
     <nav className="fixed left-0 top-0 h-screen w-[250px] flex flex-col z-50 bg-[#12110f]"
@@ -114,12 +115,13 @@ export default function Navbar() {
       <div className="flex-1 flex flex-col px-3.5">
         <div className="flex flex-col gap-1.5">
           {NAV_ITEMS.map((item) => {
-            const active = pathname === item.href || (pathname === "/" && item.label === "Feed");
+            const href = item.label === "Profile" && user ? `/@${user.username}` : item.href;
+            const active = pathname === href || (pathname === "/" && item.label === "Feed");
             
             return (
               <button
                 key={item.href}
-                onClick={() => router.push(item.href)}
+                onClick={() => router.push(href)}
                 className={`relative flex items-center gap-4 px-4 py-3 rounded-[14px] text-[15px] transition-all duration-150 text-left group
                   ${active ? 'bg-white/[0.06] text-white hover:bg-white/[0.09]' : 'text-white/45 hover:bg-white/[0.04] hover:text-white/80'}`}
               >
@@ -137,7 +139,7 @@ export default function Navbar() {
         </div>
 
         <div className="mt-5 px-1.5">
-          <button className="w-full h-[48px] rounded-full border-none text-[#12110f] text-[15px] font-bold cursor-pointer transition-all duration-150 hover:bg-[#ffe3bc] active:scale-[.98] flex items-center justify-center gap-1.5 bg-[#FFD190]">
+          <button onClick={() => setNewPostOpen(true)} className="w-full h-[48px] rounded-full border-none text-[#12110f] text-[15px] font-bold cursor-pointer transition-all duration-150 hover:bg-[#ffe3bc] active:scale-[.98] flex items-center justify-center gap-1.5 bg-[#FFD190]">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
               <path d="M12 5v14M5 12h14" stroke="#12110f" strokeWidth={3} strokeLinecap="round" />
             </svg>
@@ -185,6 +187,13 @@ export default function Navbar() {
               style={{ borderColor: "rgba(255,255,255,0.06)" }}
             >
               <button
+                onClick={() => { setMenuOpen(false); router.push(`/@${user?.username}`); }}
+                className="w-full px-4 py-3 text-left text-[14px] text-white/60 hover:text-white hover:bg-white/[0.04] transition-colors"
+              >
+                View Profile
+              </button>
+              <div className="h-px bg-white/[0.06]" />
+              <button
                 onClick={() => { setMenuOpen(false); router.push("/settings"); }}
                 className="w-full px-4 py-3 text-left text-[14px] text-white/60 hover:text-white hover:bg-white/[0.04] transition-colors"
               >
@@ -201,6 +210,7 @@ export default function Navbar() {
           )}
         </div>
       </div>
+      {newPostOpen && <NewPostModal onClose={() => setNewPostOpen(false)} />}
     </nav>
   );
 }

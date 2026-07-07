@@ -82,6 +82,7 @@ export default function ProfilePage() {
                 src={DEMO_PROFILE.banner_url} 
                 alt="Banner" 
                 fill 
+                sizes="100vw"
                 className="object-cover"
                 priority
               />
@@ -91,8 +92,8 @@ export default function ProfilePage() {
             <div className="max-w-[960px] mx-auto w-full px-4 md:px-8">
               <div className="relative flex justify-between items-end -mt-16 md:-mt-20 z-10 mb-5">
                 <div className="relative">
-                  <div className="w24 h-24 md:w-32 md:h-32 rounded-full border-4 border-[#12110f] overflow-hidden bg-white/10 relative">
-                    <Image src={DEMO_PROFILE.avatar_url} alt="Avatar" fill className="object-cover" />
+                  <div className="w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-[#12110f] overflow-hidden bg-white/10 relative">
+                    <Image src={DEMO_PROFILE.avatar_url} alt="Avatar" fill sizes="128px" className="object-cover" />
                   </div>
                   {DEMO_PROFILE.is_verified && (
                     <div className="absolute bottom-1 right-1 md:bottom-2 md:right-2 w-6 h-6 rounded-full bg-[#FFD190] border-2 border-[#12110f] flex items-center justify-center">
@@ -198,7 +199,7 @@ export default function ProfilePage() {
                     <div className="grid grid-cols-2 gap-3">
                       {TOP_MEDIA.map((url, i) => (
                         <div key={i} className="relative aspect-square rounded-[14px] overflow-hidden group cursor-pointer">
-                          <Image src={url} alt={`Media ${i}`} fill className="object-cover transition-transform duration-300 group-hover:scale-110" />
+                          <Image src={url} alt="" fill sizes="150px" className="object-cover transition-transform duration-300 group-hover:scale-110" />
                           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
                         </div>
                       ))}
