@@ -1,65 +1,62 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { clearTokens, getStoredUser, type User } from "@/lib/api";
 
-interface NavItem {
-  label: string;
-  href: string;
-  icon: string;
-  badge?: number;
-}
-
-const NAV_ITEMS: readonly NavItem[] = [
+const NAV_ITEMS = [
   { label: "Feed", href: "/feed", icon: "feed" },
   { label: "Explore", href: "/explore", icon: "explore" },
-  { label: "Notifications", href: "/notifications", icon: "notifications", badge: 7 },
+  { label: "Notifications", href: "/notifications", icon: "notifications" },
   { label: "Messages", href: "/messages", icon: "messages" },
   { label: "Saved", href: "/saved", icon: "saved" },
   { label: "Profile", href: "/profile", icon: "profile" },
 ] as const;
 
-function NavIcon({ name, active }: { name: string; active: boolean }) {
-  const c = active ? "rgba(255, 255, 255, 0.9)" : "rgba(255, 255, 255, 0.4)";
-  const props = { width: 22, height: 22, fill: c, viewBox: "0 0 24 24" };
+function NavIcon({ name }: { name: string }) {
+  const c = "rgba(255,255,255,0.5)";
+  const props = { width: 22, height: 22, fill: "none", viewBox: "0 0 24 24" };
 
   switch (name) {
     case "feed":
       return (
         <svg {...props}>
-          <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z" stroke={c} strokeWidth={1.5} strokeLinejoin="round" />
+          <path d="M9 22V12h6v10" stroke={c} strokeWidth={1.5} strokeLinejoin="round" />
         </svg>
       );
     case "explore":
       return (
-        <svg {...props} fill="none" stroke={c} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="11" cy="11" r="8" />
-          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        <svg {...props}>
+          <circle cx={12} cy={12} r={9} stroke={c} strokeWidth={1.5} />
+          <path d="M16.5 7.5L21 3" stroke={c} strokeWidth={1.5} strokeLinecap="round" />
         </svg>
       );
     case "notifications":
       return (
         <svg {...props}>
-          <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke={c} strokeWidth={1.5} strokeLinejoin="round" />
+          <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke={c} strokeWidth={1.5} strokeLinejoin="round" />
         </svg>
       );
     case "messages":
       return (
         <svg {...props}>
-          <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10z" stroke={c} strokeWidth={1.5} strokeLinejoin="round" />
         </svg>
       );
     case "saved":
       return (
         <svg {...props}>
-          <path d="M17 3H7c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3V5c0-1.1-.9-2-2-2z" />
+          <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" stroke={c} strokeWidth={1.5} strokeLinejoin="round" />
         </svg>
       );
     case "profile":
       return (
         <svg {...props}>
-          <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+          <circle cx={12} cy={8} r={4} stroke={c} strokeWidth={1.5} />
+          <path d="M20 21a8 8 0 1 0-16 0" stroke={c} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       );
     default:
@@ -69,11 +66,13 @@ function NavIcon({ name, active }: { name: string; active: boolean }) {
 
 export default function Navbar() {
   const router = useRouter();
-  const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const user: User | null = getStoredUser();
+  useEffect(() => {
+    setUser(getStoredUser());
+  }, []);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -90,92 +89,76 @@ export default function Navbar() {
     router.replace("/login");
   }
 
-  const displayName = user?.display_name ?? "You";
-  const initial = displayName.charAt(0).toUpperCase();
+  const initial = (user?.display_name ?? user?.username ?? "U").charAt(0).toUpperCase();
 
   return (
-    <nav className="fixed left-0 top-0 h-screen w-[250px] flex flex-col z-50 bg-[#12110f]"
+    <nav className="fixed left-0 top-0 h-screen w-[240px] flex flex-col border-r z-50"
       style={{
-        borderRight: "1px solid rgba(255, 209, 144, 0.02)",
+        backgroundColor: "rgba(255, 209, 144, 0.03)",
+        borderColor: "rgba(255, 209, 144, 0.08)",
       }}
     >
-      <div className="flex items-center gap-2 px-6 pt-7 pb-6">
-        <span className="text-[28px] font-bold tracking-tight flex gap-2.5">
-          <span className="text-[#FFD190]">Grid</span>
-          <span className="text-white font-semibold">hub</span>
+      <div className="flex items-center gap-2.5 px-5 pt-5 pb-4">
+        <Image src="/favicon.svg" alt="" width={26} height={26} />
+        <span className="text-[26px] font-bold tracking-tight">
+          <span className="text-yellow">Grid</span>
+          <span className="text-white">hub</span>
         </span>
       </div>
 
-      <div className="flex-1 flex flex-col px-3.5">
-        <div className="flex flex-col gap-1.5">
-          {NAV_ITEMS.map((item) => {
-            const active = pathname === item.href || (pathname === "/" && item.label === "Feed");
-            
-            return (
-              <button
-                key={item.href}
-                onClick={() => router.push(item.href)}
-                className={`relative flex items-center gap-4 px-4 py-3 rounded-[14px] text-[15px] transition-all duration-150 text-left group
-                  ${active ? 'bg-white/[0.06] text-white hover:bg-white/[0.09]' : 'text-white/45 hover:bg-white/[0.04] hover:text-white/80'}`}
-              >
-                <NavIcon name={item.icon} active={active} />
-                <span className="font-medium tracking-wide">{item.label}</span>
-
-                {item.badge !== undefined && item.badge > 0 && (
-                  <span className="ml-auto w-5 h-5 rounded-full bg-[#FFD190] text-[#12110f] text-[11px] font-bold flex items-center justify-center transition-transform group-hover:scale-105">
-                    {item.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+      <div className="flex-1 flex flex-col px-3">
+        <div className="flex flex-col gap-0.5">
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.href}
+              onClick={() => router.push(item.href)}
+              className="flex items-center gap-3 px-4 py-2.5 rounded-[12px] text-[15px] text-white/60 transition-all duration-200 hover:bg-white/[0.04] text-left"
+            >
+              <NavIcon name={item.icon} />
+              <span className="font-medium">{item.label}</span>
+            </button>
+          ))}
         </div>
 
-        <div className="mt-5 px-1.5">
-          <button className="w-full h-[48px] rounded-full border-none text-[#12110f] text-[15px] font-bold cursor-pointer transition-all duration-150 hover:bg-[#ffe3bc] active:scale-[.98] flex items-center justify-center gap-1.5 bg-[#FFD190]">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path d="M12 5v14M5 12h14" stroke="#12110f" strokeWidth={3} strokeLinecap="round" />
+        <div className="mt-4 mx-2">
+          <button className="w-full h-[44px] rounded-[14px] border-none bg-yellow text-dark text-[15px] font-bold cursor-pointer transition-all duration-200 hover:brightness-110 active:scale-[.98] flex items-center justify-center gap-2">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M12 5v14M5 12h14" stroke="#121212" strokeWidth={2.5} strokeLinecap="round" />
             </svg>
             New Post
           </button>
         </div>
       </div>
 
-      <div className="px-3.5 pb-6">
-        <div className="h-[1px] w-full mx-auto mb-4 bg-white/[0.04]" />
-
+      <div className="border-t px-3 py-3" style={{ borderColor: "rgba(255, 209, 144, 0.08)" }}>
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setMenuOpen(!menuOpen)}
-            className="flex items-center w-full gap-3 px-3 py-2 rounded-[14px] transition-all duration-150 hover:bg-white/[0.04] group"
+            className="flex items-center w-full gap-3 px-3 py-2 rounded-[12px] transition-all duration-200 hover:bg-white/[0.04]"
           >
-            <div className="shrink-0">
-              <div className="w-10 h-10 rounded-full bg-[#FFD190] flex items-center justify-center transition-transform group-hover:scale-102">
-                <span className="text-[16px] font-black text-[#12110f]">{initial}</span>
+            <div className="relative shrink-0">
+              <div className="w-10 h-10 rounded-[12px] bg-white/10 flex items-center justify-center">
+                <span className="text-[16px] font-bold text-white/60">{initial}</span>
               </div>
             </div>
-            
             <div className="flex-1 min-w-0 text-left">
-              <p className="text-white text-[14px] font-bold tracking-wide truncate">
-                {displayName}
+              <p className="text-white text-[14px] font-medium truncate">
+                {user?.display_name ?? user?.username ?? "User"}
               </p>
-              <p className="text-white/30 text-[12px] truncate group-hover:text-white/40 transition-colors">
-                @{user?.username ?? "yourhandle"}
-              </p>
+              {user && <p className="text-white/40 text-[12px] truncate">@{user.username}</p>}
             </div>
-
-            <div className="text-white/30 group-hover:text-white/70 transition-colors shrink-0 pe-1">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                <circle cx={12} cy={6} r={1.5} />
-                <circle cx={12} cy={12} r={1.5} />
-                <circle cx={12} cy={18} r={1.5} />
+            <div className="text-white/40 hover:text-white transition-colors shrink-0">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <circle cx={12} cy={5} r={2} fill="currentColor" />
+                <circle cx={12} cy={12} r={2} fill="currentColor" />
+                <circle cx={12} cy={19} r={2} fill="currentColor" />
               </svg>
             </div>
           </button>
 
           {menuOpen && (
-            <div className="absolute bottom-full left-0 right-0 mb-2 rounded-[14px] border overflow-hidden z-50 bg-[#1a1a1a]"
-              style={{ borderColor: "rgba(255,255,255,0.06)" }}
+            <div className="absolute bottom-full left-0 right-0 mb-2 rounded-[14px] border overflow-hidden shadow-xl"
+              style={{ backgroundColor: "#1a1a1a", borderColor: "rgba(255,255,255,0.08)" }}
             >
               <button
                 onClick={() => { setMenuOpen(false); router.push("/settings"); }}
@@ -183,10 +166,10 @@ export default function Navbar() {
               >
                 Settings
               </button>
-              <div className="h-px bg-white/[0.06]" />
+              <div className="h-px" style={{ backgroundColor: "rgba(255,255,255,0.06)" }} />
               <button
                 onClick={() => { setMenuOpen(false); handleLogout(); }}
-                className="w-full px-4 py-3 text-left text-[14px] text-red-400 hover:bg-red-500/10 transition-colors"
+                className="w-full px-4 py-3 text-left text-[14px] text-red-400 hover:bg-white/[0.04] transition-colors"
               >
                 Log Out
               </button>
