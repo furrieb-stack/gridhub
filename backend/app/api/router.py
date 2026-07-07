@@ -15,10 +15,12 @@ from app.api.upload import router as upload_router
 from app.api.websocket import router as websocket_router
 from app.api.health import router as health_router
 from app.api.karma import router as karma_router
+from app.api.oauth import router as oauth_router
 
 api_router = APIRouter()
 
 api_router.include_router(auth_router)
+api_router.include_router(oauth_router)
 api_router.include_router(users_router)
 api_router.include_router(posts_router)
 api_router.include_router(comments_router)

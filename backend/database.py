@@ -20,12 +20,16 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(30), unique=True, index=True, nullable=False)
     email = Column(String(100), unique=True, index=True, nullable=False)
-    hashed_password = Column(String(255), nullable=False)
+    hashed_password = Column(String(255), nullable=True)
     
     display_name = Column(String(50), nullable=True)
     avatar_url = Column(String(500), nullable=True)
     banner_url = Column(String(500), nullable=True)
     bio = Column(Text, nullable=True)
+    
+    oauth_provider = Column(String(20), nullable=True)
+    oauth_id = Column(String(100), nullable=True)
+    oauth_setup_complete = Column(Boolean, default=False)
     
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
@@ -320,7 +324,10 @@ def ensure_columns():
         'ban_reason': 'VARCHAR(500)',
         'ban_ip': 'VARCHAR(45)',
         'soft_ban_data': 'TEXT',
-        'updated_at': 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP'
+        'updated_at': 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+        'oauth_provider': 'VARCHAR(20)',
+        'oauth_id': 'VARCHAR(100)',
+        'oauth_setup_complete': 'BOOLEAN DEFAULT FALSE'
     }
     
     with engine.connect() as conn:
@@ -332,6 +339,15 @@ def ensure_columns():
                 except Exception as e:
                     print(f"Could not add column {col_name}: {e}")
         conn.commit()
+
+    # make hashed_password nullable for OAuth users
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE users ALTER COLUMN hashed_password DROP NOT NULL"))
+            conn.commit()
+            print("Made hashed_password nullable")
+        except Exception as e:
+            conn.rollback()
     
     if inspector.has_table('posts'):
         existing_columns = [col['name'] for col in inspector.get_columns('posts')]

@@ -79,3 +79,38 @@ class BanUserRequest(BaseModel):
     reason: Optional[str] = None
     ban_ip: bool = False
     soft_ban: bool = False
+
+
+class OAuthSetupRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=30)
+    password: str = Field(..., min_length=8, max_length=72)
+    setup_token: str
+
+    @validator("username")
+    def validate_username(cls, v):
+        if not re.match(r"^[a-zA-Z0-9_.-]+$", v):
+            raise ValueError("Username can only contain letters, numbers, dots, underscores and hyphens")
+        if v.lower() in ["admin", "moderator", "support", "help", "system"]:
+            raise ValueError("Username is reserved")
+        return v
+
+    @validator("password")
+    def validate_password(cls, v):
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        if not re.search(r"[A-Z]", v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not re.search(r"[a-z]", v):
+            raise ValueError("Password must contain at least one lowercase letter")
+        if not re.search(r"\d", v):
+            raise ValueError("Password must contain at least one number")
+        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", v):
+            raise ValueError("Password must contain at least one special character")
+        return v
+
+
+class OAuthSetupResponse(BaseModel):
+    access_token: str
+    token_type: str
+    refresh_token: str
+    user: UserResponse
