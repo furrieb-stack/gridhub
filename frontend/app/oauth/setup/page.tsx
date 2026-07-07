@@ -83,7 +83,11 @@ function SetupForm() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.detail ?? "Setup failed");
+        const detail = data.detail;
+        const message = Array.isArray(detail)
+          ? detail.map((d: { msg: string }) => d.msg).join("; ")
+          : detail ?? "Setup failed";
+        setError(message);
         return;
       }
 
