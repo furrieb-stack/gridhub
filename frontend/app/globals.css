@@ -9,17 +9,10 @@
   --color-muted: rgba(255, 255, 255, 0.5);
   --color-muted-light: rgba(255, 255, 255, 0.6);
   --color-muted-dark: rgba(255, 255, 255, 0.35);
-  --font-sans: "Roboto", sans-serif;
-}
-
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+  --font-sans: var(--font-roboto);
 }
 
 body {
-  background: var(--color-dark);
+  background: #121212;
   color: white;
-  font-family: var(--font-sans);
 }

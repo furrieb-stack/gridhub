@@ -13,8 +13,11 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const canSubmit = username.trim() && password;
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!canSubmit) return;
     setError("");
     setLoading(true);
 
@@ -30,10 +33,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex h-screen items-center justify-center">
+    <div className="flex h-screen items-center justify-center p-4">
       <form
         onSubmit={handleSubmit}
-        className="w-[340px]"
+        className="w-full max-w-[340px]"
       >
         <div className="flex items-center gap-2 mb-3">
           <Image src="/favicon.svg" alt="Gridhub" width={28} height={28} />
@@ -75,8 +78,8 @@ export default function LoginPage() {
 
         <button
           type="submit"
-          disabled={loading}
-          className="w-full h-12 mt-6 border-none rounded-[16px] bg-yellow text-dark text-[15px] font-bold cursor-pointer transition-all duration-200 hover:brightness-110 active:scale-[.98] disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={loading || !canSubmit}
+          className="w-full h-12 mt-6 border-none rounded-[16px] bg-yellow text-dark text-[15px] font-bold cursor-pointer transition-all duration-200 hover:brightness-110 active:scale-[.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100 disabled:active:scale-100"
         >
           {loading ? "Signing in..." : "Login"}
         </button>
