@@ -57,13 +57,13 @@ export default function LoginPage() {
   return (
     <div className="relative flex h-screen items-center justify-center p-4 overflow-hidden">
       <div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full pointer-events-none"
+        className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/3 rounded-full pointer-events-none"
         style={{
-          width: 352,
-          height: 352,
+          width: 600,
+          height: 600,
           background: "#FFD190",
-          filter: "blur(500px)",
-          opacity: 0.25,
+          filter: "blur(200px)",
+          opacity: 0.2,
         }}
       />
       <div className="noise-overlay" />
