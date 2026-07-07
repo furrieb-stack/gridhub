@@ -110,7 +110,18 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="flex h-screen items-center justify-center p-4">
+    <div className="relative flex h-screen items-center justify-center p-4 overflow-hidden">
+      <div
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full pointer-events-none"
+        style={{
+          width: 352,
+          height: 352,
+          background: "#FFD190",
+          filter: "blur(500px)",
+          opacity: 0.25,
+        }}
+      />
+      <div className="noise-overlay" />
       <form onSubmit={handleSubmit} className="w-full max-w-[340px]">
         <div className="flex items-center gap-2 mb-3">
           <Image src="/favicon.svg" alt="Gridhub" width={28} height={28} />

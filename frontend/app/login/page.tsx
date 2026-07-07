@@ -55,7 +55,18 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex h-screen items-center justify-center p-4">
+    <div className="relative flex h-screen items-center justify-center p-4 overflow-hidden">
+      <div
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full pointer-events-none"
+        style={{
+          width: 352,
+          height: 352,
+          background: "#FFD190",
+          filter: "blur(500px)",
+          opacity: 0.25,
+        }}
+      />
+      <div className="noise-overlay" />
       <form
         onSubmit={handleSubmit}
         className="w-full max-w-[340px]"
@@ -152,7 +163,8 @@ export default function LoginPage() {
             ) : (
               <>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                  <path d="M2 2h20v20H2V2zm3.5 16h2.5l1.5-5h4l1.5 5h2.5l-4.5-14h-2.5L5.5 18zm3.5-7.5L10.5 7h3l1.5 3.5H9z" fill="currentColor"/>
+                  <circle cx="12" cy="12" r="11" fill="white"/>
+                  <path d="M10.5 6.5h-3l-3 10h2.5l1-3.5h4l1 3.5h2.5l-3-10h-2zm-.5 4.5L11 8l1 3H10z" fill="#FC3F1D"/>
                 </svg>
                 <span>Sign in with Yandex</span>
               </>
