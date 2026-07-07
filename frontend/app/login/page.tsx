@@ -6,7 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { apiLogin, saveTokens } from "@/lib/api";
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE?.replace("/api", "") || "http://localhost:8000";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -59,10 +59,10 @@ export default function LoginPage() {
       <div
         className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/3 rounded-full pointer-events-none"
         style={{
-          width: 600,
-          height: 600,
+          width: 420,
+          height: 420,
           background: "#FFD190",
-          filter: "blur(200px)",
+          filter: "blur(250px)",
           opacity: 0.2,
         }}
       />

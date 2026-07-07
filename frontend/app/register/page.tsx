@@ -114,10 +114,10 @@ export default function RegisterPage() {
       <div
         className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/3 rounded-full pointer-events-none"
         style={{
-          width: 600,
-          height: 600,
+          width: 420,
+          height: 420,
           background: "#FFD190",
-          filter: "blur(400px)",
+          filter: "blur(250px)",
           opacity: 0.2,
         }}
       />

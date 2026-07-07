@@ -10,7 +10,7 @@ import {
   type PasswordStrength,
 } from "@/lib/validation";
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE?.replace("/api", "") || "http://localhost:8000";
 
 const LEVEL_COLORS: Record<PasswordStrength["level"], string> = {
   empty: "",
