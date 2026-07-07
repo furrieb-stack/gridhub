@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { getStoredUser, clearTokens, type User } from "@/lib/api";
 import Navbar from "@/components/Navbar";
@@ -57,7 +57,9 @@ export default function FeedPage() {
 
   return (
     <div className="min-h-screen bg-dark">
-      <Navbar />
+      <Suspense fallback={null}>
+        <Navbar />
+      </Suspense>
 
       <div className="ml-[240px] flex justify-center gap-6 px-6 py-6">
         <main className="w-full max-w-[640px]">
