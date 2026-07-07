@@ -6,6 +6,9 @@ venv/
 .venv/
 env/
 
+#.md
+design.md
+
 # Node
 node_modules/
 .next/
@@ -37,6 +40,9 @@ yarn-error.log*
 # Testing
 coverage/
 .temp/
+
+# Design docs
+*design*.md
 
 # Uploads
 backend/uploads/*
