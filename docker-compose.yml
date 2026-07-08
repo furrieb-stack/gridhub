@@ -1,0 +1,101 @@
+services:
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro,z
+    depends_on:
+      - backend
+      - frontend
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: gridhub_user
+      POSTGRES_PASSWORD: gridhub_pass
+      POSTGRES_DB: gridhub_db
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - redis
+    profiles:
+      - prod
+    volumes:
+      - backend_media:/app/media
+      - backend_uploads:/app/uploads
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql://gridhub_user:gridhub_pass@postgres/gridhub_db
+      REDIS_URL: redis://redis:6379/0
+      ALLOWED_ORIGINS: http://localhost
+      ALLOWED_HOSTS: localhost,127.0.0.1
+
+  backend-dev:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - redis
+    profiles:
+      - dev
+    volumes:
+      - ./backend:/app
+      - backend_media:/app/media
+      - backend_uploads:/app/uploads
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql://gridhub_user:gridhub_pass@postgres/gridhub_db
+      REDIS_URL: redis://redis:6379/0
+      ALLOWED_ORIGINS: http://localhost
+      ALLOWED_HOSTS: localhost,127.0.0.1
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    env_file:
+      - ./frontend/.env
+    environment:
+      NEXT_PUBLIC_API_BASE: http://localhost/api
+    depends_on:
+      - backend
+    profiles:
+      - prod
+
+  frontend-dev:
+    image: node:22-alpine
+    restart: unless-stopped
+    profiles:
+      - dev
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+    environment:
+      NEXT_PUBLIC_API_BASE: http://localhost/api
+      NEXT_TELEMETRY_DISABLED: 1
+    depends_on:
+      - backend-dev
+    command: sh -c "npm install && npm run dev"
+
+volumes:
+  postgres_data:
+  redis_data:
+  backend_media:
+  backend_uploads:

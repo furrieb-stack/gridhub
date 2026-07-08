@@ -6,7 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { apiLogin, saveTokens } from "@/lib/api";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE?.replace("/api", "") || "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE?.replace("/api", "") || "";
 
 export default function LoginPage() {
   const router = useRouter();

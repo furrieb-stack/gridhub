@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
 import { clearTokens, getStoredUser, type User } from "@/lib/api";
 import Avatar from "@/components/Avatar";
 import NewPostModal from "@/components/NewPostModal";
@@ -10,14 +11,14 @@ interface NavItem {
   label: string;
   href: string;
   icon: string;
-  badge?: number;
 }
 
 const NAV_ITEMS: readonly NavItem[] = [
   { label: "Feed", href: "/feed", icon: "feed" },
   { label: "Explore", href: "/explore", icon: "explore" },
-  { label: "Notifications", href: "/notifications", icon: "notifications", badge: 7 },
+  { label: "Notifications", href: "/notifications", icon: "notifications" },
   { label: "Messages", href: "/messages", icon: "messages" },
+  { label: "Communities", href: "/subgrids", icon: "subgrids" },
   { label: "Saved", href: "/saved", icon: "saved" },
   { label: "Profile", href: "/profile", icon: "profile" },
 ] as const;
@@ -52,6 +53,15 @@ function NavIcon({ name, active }: { name: string; active: boolean }) {
           <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
         </svg>
       );
+    case "subgrids":
+      return (
+        <svg {...props}>
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      );
     case "saved":
       return (
         <svg {...props}>
@@ -75,11 +85,52 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [newPostOpen, setNewPostOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [subgrids, setSubgrids] = useState<{ id: number; name: string; display_name: string | null }[]>([]);
+  const [selectedSubgridId, setSelectedSubgridId] = useState<number | undefined>(undefined);
+  const [showSubgridPicker, setShowSubgridPicker] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-
 
   useEffect(() => {
     setUser(getStoredUser());
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/subgrids/my", {
+      headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
+    })
+      .then((r) => r.json())
+      .then((data) => setSubgrids(data))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+
+    fetch("/api/notifications/unread-count", {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.unread_count !== undefined) {
+          setUnreadCount(data.unread_count);
+        }
+      })
+      .catch(console.error);
+
+    const eventSource = new EventSource(`/api/notifications/stream/${token}`);
+    
+    eventSource.addEventListener("unread", (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        setUnreadCount(data.unread_count);
+      } catch (e) { console.error(e); }
+    });
+
+    return () => {
+      eventSource.close();
+    };
   }, []);
 
   useEffect(() => {
@@ -106,9 +157,9 @@ export default function Navbar() {
       }}
     >
       <div className="flex items-center gap-2 px-6 pt-7 pb-6">
-        <span className="text-[28px] font-bold tracking-tight flex gap-2.5">
+        <span className="text-[28px] font-bold tracking-tight">
           <span className="text-[#FFD190]">Grid</span>
-          <span className="text-white font-semibold">hub</span>
+          <span className="text-white font-semibold ml-[1px]">hub</span>
         </span>
       </div>
 
@@ -117,28 +168,49 @@ export default function Navbar() {
           {NAV_ITEMS.map((item) => {
             const href = item.label === "Profile" && user ? `/@${user.username}` : item.href;
             const active = pathname === href || (pathname === "/" && item.label === "Feed");
-            
+            const badge = item.label === "Notifications" ? unreadCount : 0;
+
             return (
-              <button
+              <Link
                 key={item.href}
-                onClick={() => router.push(href)}
+                href={href}
                 className={`relative flex items-center gap-4 px-4 py-3 rounded-[14px] text-[15px] transition-all duration-150 text-left group
                   ${active ? 'bg-white/[0.06] text-white hover:bg-white/[0.09]' : 'text-white/45 hover:bg-white/[0.04] hover:text-white/80'}`}
               >
                 <NavIcon name={item.icon} active={active} />
                 <span className="font-medium tracking-wide">{item.label}</span>
 
-                {item.badge !== undefined && item.badge > 0 && (
+                {badge > 0 && (
                   <span className="ml-auto w-5 h-5 rounded-full bg-[#FFD190] text-[#12110f] text-[11px] font-bold flex items-center justify-center transition-transform group-hover:scale-105">
-                    {item.badge}
+                    {badge > 99 ? '99+' : badge}
                   </span>
                 )}
-              </button>
+              </Link>
             );
           })}
         </div>
 
-        <div className="mt-5 px-1.5">
+        <div className="mt-5 px-1.5 flex flex-col gap-2">
+          {showSubgridPicker && (
+            <div className="rounded-[16px] border border-white/[0.08] bg-[#1a1a1a] shadow-xl overflow-hidden">
+              <button
+                onClick={() => { setSelectedSubgridId(undefined); setShowSubgridPicker(false); }}
+                className="w-full px-4 py-3 text-left text-white/50 text-[13px] hover:bg-white/[0.04] transition-colors"
+              >
+                None (general post)
+              </button>
+              <div className="h-px bg-white/[0.04]" />
+              {subgrids.map((sg) => (
+                <button
+                  key={sg.id}
+                  onClick={() => { setSelectedSubgridId(sg.id); setShowSubgridPicker(false); }}
+                  className={`w-full px-4 py-3 text-left text-[13px] hover:bg-white/[0.04] transition-colors font-medium ${selectedSubgridId === sg.id ? "text-[#FFD190] bg-[#FFD190]/5" : "text-white/90"}`}
+                >
+                  {sg.display_name ?? sg.name}
+                </button>
+              ))}
+            </div>
+          )}
           <button onClick={() => setNewPostOpen(true)} className="w-full h-[48px] rounded-full border-none text-[#12110f] text-[15px] font-bold cursor-pointer transition-all duration-150 hover:bg-[#ffe3bc] active:scale-[.98] flex items-center justify-center gap-1.5 bg-[#FFD190]">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
               <path d="M12 5v14M5 12h14" stroke="#12110f" strokeWidth={3} strokeLinecap="round" />
@@ -186,19 +258,21 @@ export default function Navbar() {
             <div className="absolute bottom-full left-0 right-0 mb-2 rounded-[14px] border overflow-hidden z-50 bg-[#1a1a1a]"
               style={{ borderColor: "rgba(255,255,255,0.06)" }}
             >
-              <button
-                onClick={() => { setMenuOpen(false); router.push(`/@${user?.username}`); }}
-                className="w-full px-4 py-3 text-left text-[14px] text-white/60 hover:text-white hover:bg-white/[0.04] transition-colors"
+              <Link
+                href={`/@${user?.username}`}
+                onClick={() => setMenuOpen(false)}
+                className="block w-full px-4 py-3 text-left text-[14px] text-white/60 hover:text-white hover:bg-white/[0.04] transition-colors"
               >
                 View Profile
-              </button>
+              </Link>
               <div className="h-px bg-white/[0.06]" />
-              <button
-                onClick={() => { setMenuOpen(false); router.push("/settings"); }}
-                className="w-full px-4 py-3 text-left text-[14px] text-white/60 hover:text-white hover:bg-white/[0.04] transition-colors"
+              <Link
+                href="/settings"
+                onClick={() => setMenuOpen(false)}
+                className="block w-full px-4 py-3 text-left text-[14px] text-white/60 hover:text-white hover:bg-white/[0.04] transition-colors"
               >
                 Settings
-              </button>
+              </Link>
               <div className="h-px bg-white/[0.06]" />
               <button
                 onClick={() => { setMenuOpen(false); handleLogout(); }}
@@ -210,7 +284,7 @@ export default function Navbar() {
           )}
         </div>
       </div>
-      {newPostOpen && <NewPostModal onClose={() => setNewPostOpen(false)} />}
+      {newPostOpen && <NewPostModal subgridId={selectedSubgridId} onClose={() => setNewPostOpen(false)} />}
     </nav>
   );
 }

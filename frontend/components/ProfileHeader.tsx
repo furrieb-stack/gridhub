@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { mediaUrl } from "@/lib/api";
 import Avatar from "@/components/Avatar";
 import VerifiedBadge from "@/components/VerifiedBadge";
 import FollowButton from "@/components/FollowButton";
@@ -30,24 +31,20 @@ export default function ProfileHeader({ profile }: ProfileHeaderProps) {
       <div className="relative w-full h-48 md:h-64 bg-white/5 overflow-hidden">
         {profile.banner_url && !imgErr ? (
           <img
-            src={profile.banner_url}
+            src={mediaUrl(profile.banner_url)}
             alt=""
             className="w-full h-full object-cover"
             onError={() => setImgErr(true)}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="rgba(255,255,255,0.08)">
-              <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
-            </svg>
-          </div>
+          <div className="w-full h-full bg-gradient-to-tr from-[#FFD190]/20 via-purple-500/20 to-blue-500/20" />
         )}
       </div>
 
       <div className="px-5 md:px-8 pb-6">
-        <div className="flex items-end justify-between -mt-10 md:-mt-14 mb-4">
-          <div className="relative">
-            <div className="rounded-full border-4 border-[#12110f]">
+        <div className="flex items-end justify-between -mt-12 md:-mt-16 mb-4">
+          <div className="relative inline-block shrink-0">
+            <div className="rounded-full border-4 border-[#12110f] bg-[#12110f] overflow-hidden">
               <Avatar
                 src={profile.avatar_url}
                 username={profile.username}
@@ -58,14 +55,14 @@ export default function ProfileHeader({ profile }: ProfileHeaderProps) {
             {profile.is_verified && (
               <VerifiedBadge
                 size={26}
-                className="absolute -bottom-1 -right-1 border-[3px] border-[#12110f]"
+                className="absolute bottom-0 right-0 border-[3px] border-[#12110f]"
               />
             )}
           </div>
 
           {!profile.is_own_profile && (
             <div className="mb-1 md:mb-3">
-              <FollowButton isFollowing={profile.is_following} />
+              <FollowButton userId={profile.id} isFollowing={profile.is_following} />
             </div>
           )}
           {profile.is_own_profile && (

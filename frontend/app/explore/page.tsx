@@ -5,19 +5,13 @@ import { useRouter } from "next/navigation";
 import { getStoredUser, type User } from "@/lib/api";
 import Navbar from "@/components/Navbar";
 import MobileNav from "@/components/MobileNav";
+import Post, { type PostData } from "@/components/Post";
 
 const EXPLORE_CATEGORIES = [
-  { label: "Trending", active: true },
-  { label: "Recent", active: false },
-  { label: "People", active: false },
-  { label: "Media", active: false },
-];
-
-const TRENDING_POSTS = [
-  { user: "rustacean", content: "Rust 2026 edition is going to be massive. The borrow checker improvements alone...", likes: "2.3k" },
-  { user: "ann_dev", content: "Just hit 1000 contributions on GitHub this year! Open source is life 🚀", likes: "1.8k" },
-  { user: "gridhub", content: "We're hiring! Looking for a senior frontend engineer to join the team.", likes: "1.2k" },
-  { user: "photo_dump", content: "Golden hour through the trees 🌅", likes: "3.4k", image: true },
+  { label: "Trending", value: "hot" },
+  { label: "Top", value: "top" },
+  { label: "Rising", value: "rising" },
+  { label: "New", value: "new" },
 ];
 
 export default function ExplorePage() {
@@ -25,12 +19,38 @@ export default function ExplorePage() {
   const [user, setUser] = useState<User | null>(null);
   const [search, setSearch] = useState("");
   const [catIndex, setCatIndex] = useState(0);
+  const [posts, setPosts] = useState<PostData[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    document.title = "Explore | Gridhub";
     const stored = getStoredUser();
     if (!stored) router.replace("/login");
     else setUser(stored);
   }, [router]);
+
+  useEffect(() => {
+    if (!user) return;
+    async function fetchExplore() {
+      setLoading(true);
+      try {
+        const token = localStorage.getItem("access_token");
+        const sort = EXPLORE_CATEGORIES[catIndex].value;
+        const res = await fetch(`/api/posts?sort=${sort}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setPosts(data);
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchExplore();
+  }, [user, catIndex]);
 
   if (!user) return null;
 
@@ -69,25 +89,15 @@ export default function ExplorePage() {
           </div>
 
           <div className="flex flex-col gap-3">
-            {TRENDING_POSTS.map((post, i) => (
-              <div key={i} className="rounded-[24px] border p-5 transition-all duration-200"
-                style={{ backgroundColor: "rgba(255, 255, 255, 0.03)", borderColor: "rgba(255, 255, 255, 0.04)" }}
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center">
-                    <span className="text-white/40 text-[10px] font-bold">{post.user[0].toUpperCase()}</span>
-                  </div>
-                  <span className="text-white/50 text-[13px]">@{post.user}</span>
-                </div>
-                <p className="text-white/80 text-[14px] leading-relaxed">{post.content}</p>
-                <div className="flex items-center gap-1.5 mt-3 text-white/30 text-[12px]">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                  </svg>
-                  <span>{post.likes}</span>
-                </div>
-              </div>
-            ))}
+            {loading ? (
+              <div className="text-center text-white/50 py-10 text-[14px]">Loading...</div>
+            ) : posts.length > 0 ? (
+              posts.map((post, i) => (
+                <Post key={post.id + "-" + i} {...post} />
+              ))
+            ) : (
+              <div className="text-center text-white/50 py-10 text-[14px]">No posts found</div>
+            )}
           </div>
         </div>
       </main>

@@ -12,8 +12,8 @@ REFRESH_TOKEN_EXPIRE_DAYS = 7
 MAX_LOGIN_ATTEMPTS = 5
 LOGIN_WINDOW_MINUTES = 15
 MAX_REQUESTS_PER_MINUTE = 60
-MAX_UPLOAD_SIZE = 10 * 1024 * 1024
-ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".bmp", ".tiff", ".ico"}
+MAX_UPLOAD_SIZE = 50 * 1024 * 1024
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".bmp", ".tiff", ".ico", ".mp4", ".webm", ".mov"}
 MAX_CONTENT_LENGTH = 10000
 MAX_COMMENT_LENGTH = 5000
 POST_CACHE_TTL = 60
@@ -28,14 +28,14 @@ for dir_path in [AVATAR_DIR, BANNER_DIR, POST_MEDIA_DIR]:
     dir_path.mkdir(parents=True, exist_ok=True)
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8000").split(",")
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost").split(",")
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
-GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/auth/google/callback")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost/api/auth/google/callback")
 
 YANDEX_CLIENT_ID = os.getenv("YANDEX_CLIENT_ID", "")
 YANDEX_CLIENT_SECRET = os.getenv("YANDEX_CLIENT_SECRET", "")
-YANDEX_REDIRECT_URI = os.getenv("YANDEX_REDIRECT_URI", "http://localhost:8000/api/auth/yandex/callback")
+YANDEX_REDIRECT_URI = os.getenv("YANDEX_REDIRECT_URI", "http://localhost/api/auth/yandex/callback")
 
-OAUTH_FRONTEND_REDIRECT = os.getenv("OAUTH_FRONTEND_REDIRECT", "http://localhost:3000")
+OAUTH_FRONTEND_REDIRECT = os.getenv("OAUTH_FRONTEND_REDIRECT", "http://localhost")

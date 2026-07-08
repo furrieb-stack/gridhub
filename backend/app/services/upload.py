@@ -46,6 +46,7 @@ def save_upload_file(file: UploadFile, upload_dir: Path, max_size: int = MAX_UPL
         raise HTTPException(400, f"File type not allowed. Allowed: {', '.join(ALLOWED_EXTENSIONS)}")
 
     filename = generate_unique_filename(file.filename)
+    upload_dir.mkdir(parents=True, exist_ok=True)
     file_path = upload_dir / filename
 
     with open(file_path, "wb") as buffer:

@@ -30,19 +30,19 @@ app = FastAPI(
 app.mount("/media", StaticFiles(directory="media"), name="media")
 
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-CSRF-Token"],
-    expose_headers=["X-RateLimit-Limit", "X-RateLimit-Remaining"],
-    max_age=3600,
-)
-
-app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=["localhost", "127.0.0.1", "*.gridhub.com"]
     + os.getenv("ALLOWED_HOSTS", "").split(","),
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600,
 )
 
 app.state.limiter = limiter
@@ -54,6 +54,14 @@ app.include_router(api_router)
 @app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):
     start_time = time.time()
+
+    if request.method == "OPTIONS":
+        response = JSONResponse(content="ok", status_code=200)
+        response.headers["Access-Control-Allow-Origin"] = request.headers.get("origin", "http://localhost:3000")
+        response.headers["Access-Control-Allow-Methods"] = "*"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        return response
 
     if request.method in ["POST", "PUT", "PATCH"]:
         content_type = request.headers.get("content-type", "")
@@ -70,21 +78,6 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=(), payment=()"
-
-    csp_directives = [
-        "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
-        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
-        "img-src 'self' data: https:",
-        "font-src 'self' data:",
-        "connect-src 'self'",
-        "frame-ancestors 'none'",
-        "form-action 'self'",
-    ]
-    response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
-
-    response.headers["X-RateLimit-Limit"] = str(MAX_REQUESTS_PER_MINUTE)
-    response.headers["X-RateLimit-Remaining"] = str(max(0, MAX_REQUESTS_PER_MINUTE - 1))
 
     process_time = time.time() - start_time
     response.headers["X-Response-Time"] = f"{process_time:.3f}s"

@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile, File
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from database import get_db, User, Subgrid, SubgridSubscription, SubgridModerator
 from app.core.deps import limiter, get_current_active_user
@@ -88,6 +89,110 @@ async def get_subgrids(
         }
         result.append(SubgridResponse(**subgrid_dict))
 
+    return result
+
+
+@router.get("/my", response_model=list[SubgridResponse])
+async def get_my_subgrids(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    subscriptions = (
+        db.query(SubgridSubscription)
+        .filter(SubgridSubscription.user_id == current_user.id)
+        .all()
+    )
+    subgrid_ids = [s.subgrid_id for s in subscriptions]
+    subgrids = db.query(Subgrid).filter(Subgrid.id.in_(subgrid_ids)).all()
+
+    subscriber_counts = (
+        db.query(SubgridSubscription.subgrid_id, func.count(SubgridSubscription.id).label("count"))
+        .filter(SubgridSubscription.subgrid_id.in_(subgrid_ids))
+        .group_by(SubgridSubscription.subgrid_id)
+        .all()
+    )
+    sub_count_map = {s.subgrid_id: s.count for s in subscriber_counts}
+
+    moderator_counts = (
+        db.query(SubgridModerator.subgrid_id, func.count(SubgridModerator.id).label("count"))
+        .filter(SubgridModerator.subgrid_id.in_(subgrid_ids))
+        .group_by(SubgridModerator.subgrid_id)
+        .all()
+    )
+    mod_count_map = {m.subgrid_id: m.count for m in moderator_counts}
+
+    result = []
+    for subgrid in subgrids:
+        owner = db.query(User).filter(User.id == subgrid.owner_id).first()
+        owner_dict = {
+            "id": owner.id,
+            "username": owner.username,
+            "email": owner.email,
+            "display_name": owner.display_name,
+            "avatar_url": owner.avatar_url,
+            "banner_url": owner.banner_url,
+            "bio": owner.bio,
+            "is_verified": owner.is_verified,
+            "is_admin": owner.is_admin,
+            "is_mod": owner.is_mod,
+            "is_banned": owner.is_banned,
+            "is_private": owner.is_private if hasattr(owner, 'is_private') else False,
+            "privacy_settings": owner.privacy_settings if hasattr(owner, 'privacy_settings') else None,
+            "created_at": owner.created_at,
+        } if owner else None
+
+        subgrid_dict = {
+            "id": subgrid.id,
+            "name": subgrid.name,
+            "display_name": subgrid.display_name,
+            "description": subgrid.description,
+            "avatar_url": subgrid.avatar_url,
+            "banner_url": subgrid.banner_url,
+            "is_verified": subgrid.is_verified,
+            "is_nsfw": subgrid.is_nsfw,
+            "owner_id": subgrid.owner_id,
+            "owner": owner_dict,
+            "subscriber_count": sub_count_map.get(subgrid.id, 0),
+            "moderator_count": mod_count_map.get(subgrid.id, 0),
+            "is_subscribed": True,
+            "created_at": subgrid.created_at,
+        }
+        result.append(SubgridResponse(**subgrid_dict))
+    return result
+
+
+@router.get("/name/{name}", response_model=SubgridResponse)
+async def get_subgrid_by_name(
+    name: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    subgrid = db.query(Subgrid).filter(Subgrid.name == name).first()
+    if not subgrid:
+        raise HTTPException(404, "Subgrid not found")
+
+    subscriber_count = (
+        db.query(SubgridSubscription)
+        .filter(SubgridSubscription.subgrid_id == subgrid.id)
+        .count()
+    )
+    moderator_count = (
+        db.query(SubgridModerator)
+        .filter(SubgridModerator.subgrid_id == subgrid.id)
+        .count()
+    )
+    result = SubgridResponse.model_validate(subgrid)
+    result.subscriber_count = subscriber_count
+    result.moderator_count = moderator_count
+    result.is_subscribed = (
+        db.query(SubgridSubscription)
+        .filter(
+            SubgridSubscription.subgrid_id == subgrid.id,
+            SubgridSubscription.user_id == current_user.id,
+        )
+        .first()
+        is not None
+    )
     return result
 
 
@@ -206,7 +311,18 @@ async def subscribe_to_subgrid(
     if existing:
         db.delete(existing)
         db.commit()
-        return {"subscribed": False}
+
+        remaining = (
+            db.query(SubgridSubscription)
+            .filter(SubgridSubscription.subgrid_id == subgrid_id)
+            .count()
+        )
+        if remaining == 0:
+            db.delete(subgrid)
+            db.commit()
+            return {"subscribed": False, "deleted": True}
+
+        return {"subscribed": False, "deleted": False}
 
     subscription = SubgridSubscription(user_id=current_user.id, subgrid_id=subgrid_id)
     db.add(subscription)
@@ -345,6 +461,43 @@ async def upload_subgrid_banner(
         db.commit()
         db.refresh(subgrid)
         return {"banner_url": url}
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(500, f"Upload failed: {str(e)}")
+
+
+@router.post("/{subgrid_id}/avatar")
+@limiter.limit("10/minute")
+async def upload_subgrid_avatar(
+    request: Request,
+    subgrid_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    subgrid = db.query(Subgrid).filter(Subgrid.id == subgrid_id).first()
+    if not subgrid:
+        raise HTTPException(404, "Subgrid not found")
+
+    is_mod = (
+        db.query(SubgridModerator)
+        .filter(
+            SubgridModerator.subgrid_id == subgrid_id,
+            SubgridModerator.user_id == current_user.id,
+        )
+        .first()
+    )
+    if subgrid.owner_id != current_user.id and not is_mod and not current_user.is_admin:
+        raise HTTPException(403, "You don't have permission to update this subgrid")
+
+    try:
+        url = save_upload_file(file, AVATAR_DIR)
+        subgrid.avatar_url = url
+        subgrid.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(subgrid)
+        return {"avatar_url": url}
     except HTTPException as e:
         raise e
     except Exception as e:

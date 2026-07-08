@@ -51,6 +51,8 @@ class UserResponse(BaseModel):
     is_admin: bool
     is_mod: bool
     is_banned: bool
+    is_private: bool = False
+    privacy_settings: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -62,6 +64,8 @@ class UserUpdate(BaseModel):
     bio: Optional[str] = Field(None, max_length=500)
     avatar_url: Optional[str] = None
     banner_url: Optional[str] = None
+    is_private: Optional[bool] = None
+    privacy_settings: Optional[str] = None
 
 
 class TokenResponse(BaseModel):

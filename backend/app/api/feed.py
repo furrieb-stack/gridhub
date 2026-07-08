@@ -44,6 +44,7 @@ async def get_feed(
         .join(User)
         .filter(
             Post.subgrid_id.in_(subgrid_ids),
+            Post.score >= -10,
             User.is_active == True,
             User.is_banned == False,
         )
@@ -105,6 +106,9 @@ async def get_feed(
     flairs = db.query(Flair).filter(Flair.id.in_(flair_ids)).all()
     flair_map = {f.id: {"name": f.name, "color": f.color} for f in flairs}
 
+    user_votes = db.query(Vote).filter(Vote.user_id == current_user.id, Vote.post_id.in_(post_ids)).all()
+    user_vote_map = {v.post_id: v.value for v in user_votes}
+
     result = []
     for post in posts:
         author = author_map.get(post.user_id)
@@ -143,6 +147,8 @@ async def get_feed(
             "upvotes": post.upvotes,
             "downvotes": post.downvotes,
             "score": post.score,
+            "user_vote": user_vote_map.get(post.id, 0),
+            "share_count": post.share_count if hasattr(post, 'share_count') else 0,
             "comment_count": comment_map.get(post.id, 0),
             "is_pinned": post.is_pinned,
             "like_count": post.upvotes,

@@ -36,6 +36,8 @@ class User(Base):
     is_admin = Column(Boolean, default=False)
     is_mod = Column(Boolean, default=False)
     is_banned = Column(Boolean, default=False)
+    is_private = Column(Boolean, default=False)
+    privacy_settings = Column(Text, nullable=True)
     
     banned_at = Column(DateTime, nullable=True)
     ban_reason = Column(String(500), nullable=True)
@@ -128,6 +130,7 @@ class Post(Base):
     upvotes = Column(Integer, default=0)
     downvotes = Column(Integer, default=0)
     score = Column(Integer, default=0)
+    share_count = Column(Integer, default=0)
     is_pinned = Column(Boolean, default=False)
     
     created_at = Column(DateTime, default=datetime.now(timezone.utc))
@@ -145,7 +148,7 @@ class PostMedia(Base):
     __tablename__ = "post_media"
     
     id = Column(Integer, primary_key=True, index=True)
-    post_id = Column(Integer, ForeignKey("posts.id"), nullable=False)
+    post_id = Column(Integer, ForeignKey("posts.id"), nullable=True)
     url = Column(String(500), nullable=False)
     media_type = Column(String(20), nullable=False)
     uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=False)
@@ -229,6 +232,31 @@ class Notification(Base):
     
     user = relationship("User", back_populates="notifications")
 
+# //Story model
+class Story(Base):
+    __tablename__ = "stories"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    media_url = Column(String(500), nullable=False)
+    media_type = Column(String(20), default="image")
+    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    expires_at = Column(DateTime, nullable=False)
+
+    user = relationship("User")
+    likes = relationship("StoryLike", back_populates="story", cascade="all, delete-orphan")
+
+class StoryLike(Base):
+    __tablename__ = "story_likes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    story_id = Column(Integer, ForeignKey("stories.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+
+    user = relationship("User", foreign_keys=[user_id])
+    story = relationship("Story", back_populates="likes")
+
 # //WebSocket connections tracking
 class WebSocketConnection(Base):
     __tablename__ = "websocket_connections"
@@ -266,6 +294,18 @@ class Follow(Base):
     follower = relationship("User", foreign_keys=[follower_id])
     followed = relationship("User", foreign_keys=[followed_id])
 
+# //SavedPost
+class SavedPost(Base):
+    __tablename__ = "saved_posts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    post_id = Column(Integer, ForeignKey("posts.id"), nullable=False)
+    saved_at = Column(DateTime, default=datetime.now(timezone.utc))
+
+    user = relationship("User", foreign_keys=[user_id])
+    post = relationship("Post")
+
 # //Hashtag
 class Hashtag(Base):
     __tablename__ = "hashtags"
@@ -302,7 +342,17 @@ class Report(Base):
     user = relationship("User", foreign_keys=[user_id])
     resolver = relationship("User", foreign_keys=[resolved_by])
 
-# //Check and add missing columns
+class VerificationRequest(Base):
+    __tablename__ = "verification_requests"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    status = Column(String(20), default="pending")
+    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    resolved_at = Column(DateTime, nullable=True)
+    
+    user = relationship("User")
+
 def ensure_columns():
     inspector = inspect(engine)
     
@@ -327,7 +377,9 @@ def ensure_columns():
         'updated_at': 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
         'oauth_provider': 'VARCHAR(20)',
         'oauth_id': 'VARCHAR(100)',
-        'oauth_setup_complete': 'BOOLEAN DEFAULT FALSE'
+        'oauth_setup_complete': 'BOOLEAN DEFAULT FALSE',
+        'is_private': 'BOOLEAN DEFAULT FALSE',
+        'privacy_settings': 'TEXT'
     }
     
     with engine.connect() as conn:
@@ -340,7 +392,6 @@ def ensure_columns():
                     print(f"Could not add column {col_name}: {e}")
         conn.commit()
 
-    # make hashed_password nullable for OAuth users
     with engine.connect() as conn:
         try:
             conn.execute(text("ALTER TABLE users ALTER COLUMN hashed_password DROP NOT NULL"))
@@ -348,7 +399,15 @@ def ensure_columns():
             print("Made hashed_password nullable")
         except Exception as e:
             conn.rollback()
-    
+
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE post_media ALTER COLUMN post_id DROP NOT NULL"))
+            conn.commit()
+            print("Made post_media.post_id nullable")
+        except Exception as e:
+            conn.rollback()
+            
     if inspector.has_table('posts'):
         existing_columns = [col['name'] for col in inspector.get_columns('posts')]
         post_columns = {
@@ -388,6 +447,22 @@ def ensure_columns():
                         print(f"Added column: {col_name} to comments")
                     except Exception as e:
                         print(f"Could not add column {col_name} to comments: {e}")
+            conn.commit()
+
+    if inspector.has_table('stories'):
+        existing_columns = [col['name'] for col in inspector.get_columns('stories')]
+        story_columns = {
+            'expires_at': 'TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP + INTERVAL \'24 hours\'',
+        }
+
+        with engine.connect() as conn:
+            for col_name, col_type in story_columns.items():
+                if col_name not in existing_columns:
+                    try:
+                        conn.execute(text(f'ALTER TABLE stories ADD COLUMN IF NOT EXISTS {col_name} {col_type}'))
+                        print(f"Added column: {col_name} to stories")
+                    except Exception as e:
+                        print(f"Could not add column {col_name} to stories: {e}")
             conn.commit()
 
 # //Create all tables

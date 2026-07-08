@@ -11,6 +11,7 @@ export default function MessagesPage() {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
+    document.title = "Messages | Gridhub";
     const stored = getStoredUser();
     if (!stored) router.replace("/login");
     else setUser(stored);

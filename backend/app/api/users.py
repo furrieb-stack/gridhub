@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 
-from database import get_db, User, Follow, Karma, Post
+from database import get_db, User, Follow, Karma, Post, VerificationRequest
 from app.core.deps import get_current_active_user, get_optional_user
 from app.schemas.auth import UserResponse, UserUpdate, ProfileResponse
 from app.schemas.misc import KarmaResponse
@@ -39,6 +39,10 @@ async def update_me(
         if not validate_url(update_data.banner_url):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid banner URL")
         current_user.banner_url = update_data.banner_url
+    if update_data.is_private is not None:
+        current_user.is_private = update_data.is_private
+    if update_data.privacy_settings is not None:
+        current_user.privacy_settings = update_data.privacy_settings
     current_user.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(current_user)
@@ -53,6 +57,24 @@ async def delete_account(
     db.delete(current_user)
     db.commit()
     return {"message": "Account deleted"}
+
+
+@router.post("/verification-request")
+async def request_verification(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    existing = db.query(VerificationRequest).filter(
+        VerificationRequest.user_id == current_user.id,
+        VerificationRequest.status == "pending"
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Verification request already pending")
+    
+    req = VerificationRequest(user_id=current_user.id)
+    db.add(req)
+    db.commit()
+    return {"message": "Verification request submitted"}
 
 
 @router.post("/me/avatar")

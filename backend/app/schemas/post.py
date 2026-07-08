@@ -33,6 +33,8 @@ class PostResponse(BaseModel):
     upvotes: int = 0
     downvotes: int = 0
     score: int = 0
+    user_vote: int = 0
+    share_count: int = 0
     like_count: int = 0
     view_count: int = 0
     comment_count: int = 0

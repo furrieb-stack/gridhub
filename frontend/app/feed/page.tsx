@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { getStoredUser, type User } from "@/lib/api";
 import Navbar from "@/components/Navbar";
@@ -8,66 +8,134 @@ import MobileNav from "@/components/MobileNav";
 import Stories from "@/components/Stories";
 import Post from "@/components/Post";
 
-const DEMO_POSTS = [
-  {
-    author: { username: "johndoe", display_name: "John Doe", avatar_url: null, is_verified: true },
-    content: "Just shipped a new feature! 🔥 The team crushed it this sprint. Feeling really proud of what we built together.\n\nCheck out the demo in the link below 👇",
-    created_at: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
-    upvotes: 342,
-    comments_count: 28,
-  },
-  {
-    author: { username: "ann_dev", display_name: "Ann Developer", avatar_url: null, is_verified: false },
-    content: "Hot take: FastAPI is the best thing that happened to Python backend development since... ever? The automatic OpenAPI docs alone save me hours of work every week.",
-    images: ["https://picsum.photos/seed/pyth/640/360"],
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-    upvotes: 89,
-    comments_count: 12,
-  },
-  {
-    author: { username: "gridhub", display_name: "Gridhub", avatar_url: null, is_verified: true },
-    content: "Welcome to Gridhub — a new social network for developers. Build your community, share knowledge, and connect with fellow devs around the world.\n\nWhat would you like to see here first?",
-    images: [
-      "https://picsum.photos/seed/grid1/640/360",
-      "https://picsum.photos/seed/grid2/640/360",
-      "https://picsum.photos/seed/grid3/640/360",
-    ],
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-    upvotes: 1204,
-    comments_count: 156,
-  },
-  {
-    author: { username: "rustacean", display_name: "🦀 Rust Dev", avatar_url: null, is_verified: false },
-    content: "Been rewriting our Python microservice in Rust over the weekend... 10x performance improvement and zero memory leaks so far. This language is something else.",
-    images: ["https://picsum.photos/seed/rust/640/360"],
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
-    upvotes: 567,
-    comments_count: 43,
-  },
-  {
-    author: { username: "photo_dump", display_name: "Photo Dump", avatar_url: null, is_verified: false },
-    content: "Some shots from today's hike 🏔️",
-    images: [
-      "https://picsum.photos/seed/hike1/640/360",
-      "https://picsum.photos/seed/hike2/640/360",
-      "https://picsum.photos/seed/hike3/640/360",
-      "https://picsum.photos/seed/hike4/640/360",
-    ],
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString(),
-    upvotes: 891,
-    comments_count: 67,
-  },
+type SortMode = "new" | "hot" | "top";
+
+const FILTERS: { label: string; sort: SortMode }[] = [
+  { label: "For You", sort: "new" },
+  { label: "Following", sort: "new" },
+  { label: "New", sort: "new" },
+  { label: "Top", sort: "top" },
 ];
 
 export default function FeedPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
+  const [posts, setPosts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filterIndex, setFilterIndex] = useState(0);
+  const [search, setSearch] = useState("");
+  const [skip, setSkip] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const feedRef = useRef<(skip: number, append: boolean) => Promise<void>>(null!);
+
+  const observer = useRef<IntersectionObserver | null>(null);
+  const lastPostRef = useCallback(
+    (node: HTMLDivElement) => {
+      if (loading) return;
+      if (observer.current) observer.current.disconnect();
+      observer.current = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && hasMore) {
+          setSkip((prev) => prev + 20);
+        }
+      });
+      if (node) observer.current.observe(node);
+    },
+    [loading, hasMore]
+  );
+
+  const fetchPosts = useCallback(async (currentSkip: number, append: boolean = false) => {
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+
+    const sort = FILTERS[filterIndex].sort;
+    const subgridParam = filterIndex === 1 && user ? `&user_id=${user.id}` : "";
+
+    try {
+      setLoading(true);
+      let res;
+      if (search.trim() !== "") {
+        res = await fetch(
+          `/api/search?q=${search}&type=posts&skip=${currentSkip}&limit=20`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      } else {
+        res = await fetch(
+          `/api/posts?sort=${sort}&limit=20&skip=${currentSkip}${subgridParam}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      }
+      
+      if (!res.ok) throw new Error("Failed to fetch");
+      const data = await res.json();
+      const items = search.trim() !== "" ? data.posts || [] : data;
+
+      const mapped = items.map((p: any) => ({
+        id: p.id,
+        author: {
+          username: p.author?.username ?? p.user?.username ?? "unknown",
+          display_name: p.author?.display_name ?? p.user?.display_name ?? null,
+          avatar_url: p.author?.avatar_url ?? p.user?.avatar_url ?? null,
+          is_verified: p.author?.is_verified ?? p.user?.is_verified ?? false,
+        },
+        content: p.content,
+        media: p.media?.map((m: any) => ({ url: m.url })) ?? [],
+        created_at: p.created_at,
+        upvotes: p.upvotes,
+        user_vote: p.user_vote ?? 0,
+        comments_count: p.comment_count ?? 0,
+        subgrid: p.subgrid ?? null,
+      }));
+
+      if (items.length < 20) {
+        setHasMore(false);
+      }
+
+      setPosts((prev) => (append ? [...prev, ...mapped] : mapped));
+    } catch (err) {
+      if (!append) setPosts([]);
+      console.error("Error fetching posts:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [filterIndex, user, search]);
+
+  useEffect(() => { feedRef.current = fetchPosts; }, [fetchPosts]);
 
   useEffect(() => {
+    document.title = "Feed | Gridhub";
     const stored = getStoredUser();
     if (!stored) router.replace("/login");
     else setUser(stored);
   }, [router]);
+
+  useEffect(() => {
+    if (user && skip > 0) {
+      fetchPosts(skip, true);
+    }
+  }, [skip, user]);
+
+  useEffect(() => {
+    function handleCreated() {
+      setRefreshKey((k) => k + 1);
+    }
+    function handleDeleted(e: Event) {
+      const { id } = (e as CustomEvent).detail;
+      setPosts((prev) => prev.filter((p) => p.id !== id));
+    }
+    window.addEventListener("post-created", handleCreated);
+    window.addEventListener("post-deleted", handleDeleted);
+    return () => {
+      window.removeEventListener("post-created", handleCreated);
+      window.removeEventListener("post-deleted", handleDeleted);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (user && skip === 0) {
+      feedRef.current(0, false);
+    }
+  }, [filterIndex, search, user, refreshKey]);
 
   if (!user) return null;
 
@@ -90,6 +158,8 @@ export default function FeedPage() {
             <input
               type="text"
               placeholder="Search Gridhub"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
               className="w-full h-11 pl-11 pr-4 rounded-full border-none text-white text-[14px] outline-none transition-all duration-200 placeholder:text-white/25"
               style={{ backgroundColor: "rgba(255,255,255,0.04)" }}
             />
@@ -97,22 +167,46 @@ export default function FeedPage() {
 
           <Stories />
 
-          <div className="flex items-center justify-between mt-2 mb-4">
-            <h1 className="text-[20px] font-bold text-white">For You</h1>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-white/40 hover:text-white text-[13px] transition-colors duration-200"
-              style={{ backgroundColor: "rgba(255,255,255,0.04)" }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              Filter
-            </button>
+          <div className="flex items-center gap-2 mt-4 mb-4 overflow-x-auto no-scrollbar">
+            {FILTERS.map((f, i) => (
+              <button
+                key={f.label}
+                onClick={() => setFilterIndex(i)}
+                className={`px-4 py-1.5 rounded-[8px] text-[13px] font-medium whitespace-nowrap transition-colors ${
+                  i === filterIndex
+                    ? "bg-[#FFD190] text-[#12110f]"
+                    : "text-white/40 hover:text-white/70"
+                }`}
+                style={i !== filterIndex ? { backgroundColor: "rgba(255,255,255,0.04)" } : {}}
+              >
+                {f.label}
+              </button>
+            ))}
           </div>
 
           <div className="flex flex-col gap-3">
-            {DEMO_POSTS.map((post, i) => (
-              <Post key={i} {...post} />
-            ))}
+            {posts.map((post, i) => {
+              if (posts.length === i + 1) {
+                return <div ref={lastPostRef} key={post.id + "-" + i}><Post {...post} /></div>;
+              } else {
+                return <Post key={post.id + "-" + i} {...post} />;
+              }
+            })}
+            
+            {loading && (
+              <div className="flex justify-center py-6">
+                <div className="w-8 h-8 rounded-full border-2 border-[#FFD190] border-t-transparent animate-spin" />
+              </div>
+            )}
+            
+            {!loading && posts.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-20 gap-4 text-white/40 text-[15px]">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth={1.5}>
+                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                </svg>
+                <p>No posts found</p>
+              </div>
+            )}
           </div>
         </div>
       </div>

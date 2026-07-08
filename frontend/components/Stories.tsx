@@ -1,54 +1,130 @@
+"use client";
+
+import { useEffect, useState, useRef, useCallback } from "react";
+import { mediaUrl, fetchStories, getStoredUser } from "@/lib/api";
+import type { StoryGroupData } from "@/lib/api";
+import StoryViewer from "./StoryViewer";
+import StoryUploadModal from "./StoryUploadModal";
+
 export default function Stories() {
-  const items = [
-    { id: 0, username: "Your story", seen: true },
-    { id: 1, username: "Alex M.", seen: false },
-    { id: 2, username: "Sarah K.", seen: false },
-    { id: 3, username: "Mike R.", seen: false },
-    { id: 4, username: "Julia B.", seen: false },
-    { id: 5, username: "Tom W.", seen: true },
-    { id: 6, username: "Nina P.", seen: true },
-    { id: 7, username: "Dan C.", seen: true },
-  ];
+  const [groups, setGroups] = useState<StoryGroupData[]>([]);
+  const [viewingIndex, setViewingIndex] = useState<number | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
+  const [brokenAvatars, setBrokenAvatars] = useState<Set<number>>(new Set());
+  const [refreshKey, setRefreshKey] = useState(0);
+  const currentUser = getStoredUser();
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const data = await fetchStories();
+      setGroups(data);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    load();
+    const interval = setInterval(load, 30000);
+    return () => clearInterval(interval);
+  }, [load, refreshKey]);
+
+  function handleStoryCreated() {
+    setRefreshKey((k) => k + 1);
+  }
+
+  if (groups.length === 0 && !currentUser) return null;
 
   return (
-    <div className="flex items-center gap-5 overflow-x-auto py-4 px-1 no-scrollbar">
-      {items.map((item) => (
-        <button key={item.id} className="flex flex-col items-center gap-2 shrink-0 group">
+    <>
+      <div className="flex items-center gap-4 overflow-x-auto py-5 px-2 no-scrollbar">
+        <button
+          onClick={() => setShowUpload(true)}
+          className="flex flex-col items-center gap-2 shrink-0 group mr-1"
+        >
           <div className="relative">
-            <div
-              className={`w-[68px] h-[68px] rounded-full flex items-center justify-center transition-transform duration-200 group-hover:scale-105 ${
-                item.id === 0
-                  ? "border-[1.5px] border-white/20 bg-transparent"
-                  : `bg-[#FFD190] ${
-                      item.seen
-                        ? "ring-2 ring-white/10 ring-offset-[3px] ring-offset-[#12110f] opacity-50"
-                        : "ring-2 ring-white/80 ring-offset-[3px] ring-offset-[#12110f]"
-                    }`
-              }`}
-            >
-              {item.id === 0 ? (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 5v14M5 12h14" stroke="rgba(255,255,255,0.6)" strokeWidth={2} strokeLinecap="round" />
-                </svg>
+            <div className="w-[68px] h-[68px] rounded-full border border-white/10 flex items-center justify-center transition-all duration-300 group-hover:scale-105 group-hover:border-white/20 bg-white/[0.02] overflow-hidden">
+              {currentUser?.avatar_url ? (
+                <img 
+                  src={mediaUrl(currentUser.avatar_url)} 
+                  alt="Your story" 
+                  className="w-full h-full object-cover"
+                />
               ) : (
-                <span className="text-[#12110f] text-[24px] font-bold">
-                  {item.username.charAt(0)}
+                <span className="text-white/40 text-[24px] font-bold">
+                  {(currentUser?.display_name ?? currentUser?.username ?? "U").charAt(0).toUpperCase()}
                 </span>
               )}
             </div>
-
-            {!item.seen && item.id !== 0 && (
-              <div className="absolute bottom-0 right-0 w-[20px] h-[20px] rounded-full bg-[#FFD190] border-[3px] border-[#12110f]" />
-            )}
+            
+            <div className="absolute bottom-0 right-0 w-6 h-6 bg-[#FFD190] rounded-full border-[3px] border-[#12110f] flex items-center justify-center transition-transform duration-300 group-hover:scale-110 shadow-sm">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#12110f" strokeWidth={3.5} strokeLinecap="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </div>
           </div>
-          
-          <span className={`text-[12px] truncate max-w-[72px] mt-0.5 ${
-            item.id === 0 || !item.seen ? "text-white/80" : "text-white/40"
-          }`}>
-            {item.username}
+          <span className="text-[12px] font-medium text-white/60 truncate max-w-[72px] transition-colors group-hover:text-white/90">
+            Your story
           </span>
         </button>
-      ))}
-    </div>
+
+        {groups.map((g, i) => {
+          const a = g.author;
+          const hasUnseen = g.stories.length > 0;
+          return (
+            <button
+              key={g.user_id}
+              onClick={() => setViewingIndex(i)}
+              className="flex flex-col items-center gap-2 shrink-0 group"
+            >
+              <div className="relative">
+                <div
+                  className={`w-[68px] h-[68px] rounded-full flex items-center justify-center transition-all duration-300 group-hover:scale-105 overflow-hidden ${
+                    hasUnseen
+                      ? "ring-[2.5px] ring-[#FFD190] ring-offset-[3px] ring-offset-[#12110f]"
+                      : "ring-[1.5px] ring-white/15 ring-offset-[3px] ring-offset-[#12110f] opacity-60 group-hover:opacity-100"
+                  }`}
+                  style={{ backgroundColor: hasUnseen ? "#FFD190" : "#2a2a2a" }}
+                >
+                  {a.avatar_url && !brokenAvatars.has(g.user_id) ? (
+                    <img
+                      src={mediaUrl(a.avatar_url)}
+                      alt=""
+                      className="w-full h-full object-cover"
+                      onError={() => setBrokenAvatars((prev) => new Set(prev).add(g.user_id))}
+                    />
+                  ) : (
+                    <span className={`${hasUnseen ? "text-[#12110f]" : "text-white/60"} text-[24px] font-bold`}>
+                      {(a.display_name ?? a.username).charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <span className={`text-[12px] font-medium truncate max-w-[72px] transition-colors ${hasUnseen ? "text-white/90" : "text-white/50 group-hover:text-white/70"}`}>
+                {a.display_name ?? a.username}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {viewingIndex !== null && groups[viewingIndex] && (
+        <StoryViewer
+          key={viewingIndex}
+          group={groups[viewingIndex]}
+          onClose={() => setViewingIndex(null)}
+          onPrevUser={viewingIndex > 0 ? () => setViewingIndex((i) => i! - 1) : null}
+          onNextUser={viewingIndex < groups.length - 1 ? () => setViewingIndex((i) => i! + 1) : null}
+          onFollowChange={() => load()}
+        />
+      )}
+
+      {showUpload && (
+        <StoryUploadModal
+          onClose={() => setShowUpload(false)}
+          onStoryCreated={handleStoryCreated}
+        />
+      )}
+    </>
   );
 }

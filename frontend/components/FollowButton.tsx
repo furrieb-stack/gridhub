@@ -3,18 +3,43 @@
 import { useState } from "react";
 
 interface FollowButtonProps {
+  userId?: number;
   isFollowing?: boolean;
   onToggle?: () => void;
   className?: string;
 }
 
-export default function FollowButton({ isFollowing = false, onToggle, className }: FollowButtonProps) {
+export default function FollowButton({ userId, isFollowing = false, onToggle, className }: FollowButtonProps) {
   const [following, setFollowing] = useState(isFollowing);
   const [hoverUnfollow, setHoverUnfollow] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  function handleClick() {
+  async function handleClick() {
+    if (!userId || loading) return;
+    
+    // Optimistic update
     setFollowing((prev) => !prev);
-    onToggle?.();
+    setLoading(true);
+
+    try {
+      const token = localStorage.getItem("access_token");
+      const res = await fetch(`/api/users/${userId}/follow`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setFollowing(data.following);
+        onToggle?.();
+      } else {
+        // Revert on failure
+        setFollowing((prev) => !prev);
+      }
+    } catch (e) {
+      setFollowing((prev) => !prev);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Roboto } from "next/font/google";
+import ThemeProvider from "@/components/ThemeProvider";
+import { ToastProvider } from "@/components/ToastProvider";
 import "./globals.css";
 
 const roboto = Roboto({
@@ -19,12 +21,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body 
-        className={`${roboto.className} bg-[#12110f] text-white antialiased`} 
-        suppressHydrationWarning
-      >
-        {children}
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${roboto.className} antialiased`} suppressHydrationWarning>
+        <ThemeProvider>
+          <ToastProvider>
+            {children}
+          </ToastProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

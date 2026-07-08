@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from pathlib import Path
 
-from database import get_db, User, Post, Comment, Vote, Subgrid, SubgridSubscription, SubgridModerator, Flair, PostMedia, PostView, Hashtag, PostHashtag
+from database import get_db, User, Post, Comment, Vote, Subgrid, SubgridSubscription, SubgridModerator, Flair, PostMedia, PostView, Hashtag, PostHashtag, SavedPost
 from app.core.deps import limiter, get_current_active_user
 from app.core.redis import cache_post, get_cached_post, invalidate_post_cache
 from app.schemas.post import PostCreate, PostUpdate, PostResponse
@@ -89,7 +89,45 @@ async def create_post(
 
     db.commit()
     db.refresh(new_post)
-    return new_post
+
+    post_media = db.query(PostMedia).filter(PostMedia.post_id == new_post.id).all()
+    media_list = [{"id": m.id, "url": m.url, "type": m.media_type} for m in post_media]
+
+    author = db.query(User).filter(User.id == new_post.user_id).first()
+    author_dict = {
+        "username": author.username,
+        "display_name": author.display_name,
+        "avatar_url": author.avatar_url,
+        "is_verified": author.is_verified,
+    } if author else None
+
+    hashtags_in_content = re.findall(r"#[\wа-яёА-ЯЁ-]+", new_post.content)
+    tags = list(set(hashtags_in_content))
+
+    post_dict = {
+        "id": new_post.id,
+        "title": new_post.title,
+        "content": new_post.content,
+        "user_id": new_post.user_id,
+        "subgrid_id": new_post.subgrid_id,
+        "subgrid": None,
+        "flair": None,
+        "media": media_list,
+        "upvotes": new_post.upvotes,
+        "downvotes": new_post.downvotes,
+        "score": new_post.score,
+        "user_vote": 0,
+        "share_count": new_post.share_count if hasattr(new_post, 'share_count') else 0,
+        "comment_count": 0,
+        "is_pinned": new_post.is_pinned,
+        "like_count": new_post.upvotes,
+        "view_count": 0,
+        "tags": tags,
+        "created_at": new_post.created_at,
+        "updated_at": new_post.updated_at,
+        "author": author_dict,
+    }
+    return PostResponse(**post_dict)
 
 
 @router.get("", response_model=list[PostResponse])
@@ -103,6 +141,8 @@ async def get_posts(
     current_user: User = Depends(get_current_active_user),
 ):
     query = db.query(Post).join(User).filter(User.is_active == True, User.is_banned == False)
+    if not user_id:
+        query = query.filter(Post.score >= -10)
 
     if subgrid_id:
         query = query.filter(Post.subgrid_id == subgrid_id)
@@ -173,6 +213,9 @@ async def get_posts(
     flairs = db.query(Flair).filter(Flair.id.in_(flair_ids)).all()
     flair_map = {f.id: {"name": f.name, "color": f.color} for f in flairs}
 
+    user_votes = db.query(Vote).filter(Vote.user_id == current_user.id, Vote.post_id.in_(post_ids)).all()
+    user_vote_map = {v.post_id: v.value for v in user_votes}
+
     result = []
     for post in posts:
         author = author_map.get(post.user_id)
@@ -211,6 +254,8 @@ async def get_posts(
             "upvotes": post.upvotes,
             "downvotes": post.downvotes,
             "score": post.score,
+            "user_vote": user_vote_map.get(post.id, 0),
+            "share_count": post.share_count if hasattr(post, 'share_count') else 0,
             "comment_count": comment_map.get(post.id, 0),
             "is_pinned": post.is_pinned,
             "like_count": post.upvotes,
@@ -219,6 +264,85 @@ async def get_posts(
             "created_at": post.created_at,
             "updated_at": post.updated_at,
             "author": author,
+        }
+        result.append(PostResponse(**post_dict))
+
+    return result
+
+
+@router.get("/saved", response_model=list[PostResponse])
+async def get_saved_posts(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    skip: int = 0,
+    limit: int = 20,
+):
+    saved = (
+        db.query(SavedPost)
+        .filter(SavedPost.user_id == current_user.id)
+        .order_by(SavedPost.saved_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    post_ids = [s.post_id for s in saved]
+    posts = db.query(Post).filter(Post.id.in_(post_ids)).all()
+
+    author_ids = list(set(p.user_id for p in posts))
+    authors = db.query(User).filter(User.id.in_(author_ids)).all()
+    author_map = {u.id: u for u in authors}
+
+    media = db.query(PostMedia).filter(PostMedia.post_id.in_(post_ids)).all()
+    media_map = {}
+    for m in media:
+        media_map.setdefault(m.post_id, []).append({"id": m.id, "url": m.url, "type": m.media_type})
+
+    comment_counts = (
+        db.query(Comment.post_id, func.count(Comment.id).label("count"))
+        .filter(Comment.post_id.in_(post_ids))
+        .group_by(Comment.post_id)
+        .all()
+    )
+    comment_map = {c.post_id: c.count for c in comment_counts}
+
+    user_votes = db.query(Vote).filter(Vote.user_id == current_user.id, Vote.post_id.in_(post_ids)).all()
+    user_vote_map = {v.post_id: v.value for v in user_votes}
+
+    post_order = {pid: i for i, pid in enumerate(post_ids)}
+    posts_sorted = sorted(posts, key=lambda p: post_order.get(p.id, 0))
+
+    result = []
+    for post in posts_sorted:
+        author = author_map.get(post.user_id)
+        author_dict = {
+            "username": author.username,
+            "display_name": author.display_name,
+            "avatar_url": author.avatar_url,
+            "is_verified": author.is_verified,
+        } if author else None
+
+        post_dict = {
+            "id": post.id,
+            "title": post.title,
+            "content": post.content,
+            "user_id": post.user_id,
+            "subgrid_id": post.subgrid_id,
+            "subgrid": None,
+            "flair": None,
+            "media": media_map.get(post.id, []),
+            "upvotes": post.upvotes,
+            "downvotes": post.downvotes,
+            "score": post.score,
+            "user_vote": user_vote_map.get(post.id, 0),
+            "share_count": post.share_count if hasattr(post, 'share_count') else 0,
+            "comment_count": comment_map.get(post.id, 0),
+            "is_pinned": post.is_pinned,
+            "like_count": post.upvotes,
+            "view_count": 0,
+            "tags": list(set(re.findall(r"#[\wа-яёА-ЯЁ-]+", post.content))),
+            "created_at": post.created_at,
+            "updated_at": post.updated_at,
+            "author": author_dict,
         }
         result.append(PostResponse(**post_dict))
 
@@ -253,11 +377,16 @@ async def get_post(
     view_count = db.query(func.count(PostView.id)).filter(PostView.post_id == post.id).scalar() or 0
     tags = list(set(re.findall(r"#[\wа-яёА-ЯЁ-]+", post.content)))
 
+    user_vote = db.query(Vote).filter(Vote.user_id == current_user.id, Vote.post_id == post.id).first()
+    vote_val = user_vote.value if user_vote else 0
+
     result = PostResponse.model_validate(post)
     result.media = media
     result.comment_count = comment_count
     result.view_count = view_count
     result.like_count = post.upvotes
+    result.user_vote = vote_val
+    result.share_count = post.share_count if hasattr(post, 'share_count') else 0
     result.tags = tags
 
     await cache_post(post_id, result.model_dump())
@@ -509,3 +638,109 @@ async def upload_post_media(
         raise e
     except Exception as e:
         raise HTTPException(500, f"Upload failed: {str(e)}")
+
+
+@router.post("/{post_id}/vote")
+@limiter.limit("60/minute")
+async def vote_post(
+    request: Request,
+    post_id: int,
+    value: int = 1,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    if value not in (-1, 1):
+        raise HTTPException(400, "Vote value must be 1 or -1")
+
+    post = db.query(Post).filter(Post.id == post_id).first()
+    if not post:
+        raise HTTPException(404, "Post not found")
+
+    existing = (
+        db.query(Vote)
+        .filter(Vote.user_id == current_user.id, Vote.post_id == post_id)
+        .first()
+    )
+
+    if existing:
+        if existing.value == value:
+            db.delete(existing)
+            if value == 1:
+                post.upvotes -= 1
+            else:
+                post.downvotes -= 1
+            new_value = 0
+        else:
+            if value == 1:
+                post.upvotes += 1
+                post.downvotes -= 1
+            else:
+                post.downvotes += 1
+                post.upvotes -= 1
+            existing.value = value
+            new_value = value
+    else:
+        new_vote = Vote(user_id=current_user.id, post_id=post_id, value=value)
+        db.add(new_vote)
+        if value == 1:
+            post.upvotes += 1
+        else:
+            post.downvotes += 1
+        new_value = value
+
+    post.score = post.upvotes - post.downvotes
+    db.commit()
+    return {"value": new_value, "upvotes": post.upvotes, "downvotes": post.downvotes, "score": post.score}
+
+
+@router.post("/{post_id}/save")
+async def save_post(
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    existing = db.query(SavedPost).filter(
+        SavedPost.user_id == current_user.id,
+        SavedPost.post_id == post_id,
+    ).first()
+    if existing:
+        return {"saved": True}
+    db.add(SavedPost(user_id=current_user.id, post_id=post_id))
+    db.commit()
+    return {"saved": True}
+
+
+@router.delete("/{post_id}/save")
+async def unsave_post(
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    existing = db.query(SavedPost).filter(
+        SavedPost.user_id == current_user.id,
+        SavedPost.post_id == post_id,
+    ).first()
+    if existing:
+        db.delete(existing)
+        db.commit()
+    return {"saved": False}
+
+@router.post("/{post_id}/share")
+@limiter.limit("60/minute")
+async def share_post(
+    request: Request,
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    post = db.query(Post).filter(Post.id == post_id).first()
+    if not post:
+        raise HTTPException(404, "Post not found")
+    
+    if not hasattr(post, 'share_count'):
+        post.share_count = 0
+    
+    post.share_count += 1
+    db.commit()
+    await invalidate_post_cache(post_id)
+    return {"share_count": post.share_count}
