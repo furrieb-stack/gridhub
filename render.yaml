@@ -13,16 +13,15 @@ services:
     maxmemoryPolicy: noeviction
 
   - type: web
-    name: gridhub-backend
+    name: gridhub
     runtime: docker
     region: oregon
     plan: free
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: postgresql://gridhub:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:5432/gridhub
+          name: gridhub-db
           property: connectionString
       - key: REDIS_URL
         fromService:
@@ -35,36 +34,3 @@ services:
         sync: false
       - key: TZ
         value: Europe/Moscow
-      - key: ALLOWED_ORIGINS
-        value: https://gridhub-frontend.onrender.com
-      - key: OAUTH_FRONTEND_REDIRECT
-        value: https://gridhub-frontend.onrender.com
-      - key: GOOGLE_REDIRECT_URI
-        value: https://gridhub-backend.onrender.com/api/auth/google/callback
-      - key: YANDEX_REDIRECT_URI
-        value: https://gridhub-backend.onrender.com/api/auth/yandex/callback
-      - key: GOOGLE_CLIENT_ID
-        sync: false
-      - key: GOOGLE_CLIENT_SECRET
-        sync: false
-      - key: YANDEX_CLIENT_ID
-        sync: false
-      - key: YANDEX_CLIENT_SECRET
-        sync: false
-    healthCheckPath: /health
-
-  - type: web
-    name: gridhub-frontend
-    runtime: docker
-    region: oregon
-    plan: free
-    dockerfilePath: ./frontend/Dockerfile
-    dockerContext: ./frontend
-    envVars:
-      - key: NEXT_PUBLIC_API_BASE
-        value: https://gridhub-backend.onrender.com
-      - key: NODE_ENV
-        value: production
-    buildFilter:
-      paths:
-        - frontend/**
