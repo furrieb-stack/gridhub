@@ -5,29 +5,31 @@ COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -i https://pypi.org/simple/ -r requirements.txt
 COPY backend/ .
 
-RUN python -c "from database import create_tables; print('Backend OK')"
-
 FROM node:22-alpine AS frontend-builder
 
 WORKDIR /app
-COPY frontend/package.json .
+COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm install
 COPY frontend/ .
+RUN rm -rf .next
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-FROM nginx:alpine
+FROM python:3.12-slim
 
-RUN apk add --no-cache python3 py3-pip supervisor && \
-    pip3 install --no-cache-dir uvicorn fastapi sqlalchemy psycopg2-binary python-dotenv bcrypt python-jose[cryptography] slowapi python-multipart aiofiles Pillow websockets redis hiredis httpx pywebpush
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    nginx supervisor && \
+    rm -rf /var/lib/apt/lists/*
 
+COPY --from=backend-builder /usr/local/lib/python3.12 /usr/local/lib/python3.12
+COPY --from=backend-builder /usr/local/bin /usr/local/bin
 COPY --from=backend-builder /app /app/backend
 COPY --from=frontend-builder /app /app/frontend
+
 COPY nginx.conf /etc/nginx/nginx.conf
+COPY supervisord.conf /etc/supervisord.conf
 
 RUN mkdir -p /app/backend/media /app/backend/uploads
-
-COPY supervisord.conf /etc/supervisord.conf
 
 EXPOSE 10000
 

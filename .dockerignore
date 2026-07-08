@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+.gitignore
+.env
+.env.local
+*.tsbuildinfo
+.idea
+__pycache__
+*.pyc
+.env
+.DS_Store
