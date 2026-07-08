@@ -9,6 +9,7 @@ import ImageViewer from "@/components/ImageViewer";
 import Timestamp from "@/components/Timestamp";
 import VerifiedBadge from "@/components/VerifiedBadge";
 import Avatar from "@/components/Avatar";
+import { useToast } from "@/components/ToastProvider";
 
 interface PostAuthor {
   username: string;
@@ -45,6 +46,8 @@ export default function Post({ id, author, content, media, created_at, upvotes, 
   useEffect(() => {
     setDisplayContent(content);
   }, [content]);
+
+  const { addToast } = useToast();
 
   useEffect(() => {
     setCurrentUser(getStoredUser());
@@ -129,8 +132,8 @@ export default function Post({ id, author, content, media, created_at, upvotes, 
         },
         body: JSON.stringify({ post_id: id, reason, description: "" })
       });
-      if (res.ok) alert("Report submitted");
-      else alert("Could not submit report");
+      if (res.ok) addToast("Report submitted", "success");
+      else addToast("Could not submit report", "error");
     } catch (e) {
       console.error(e);
     }
@@ -147,7 +150,7 @@ export default function Post({ id, author, content, media, created_at, upvotes, 
       }).catch(console.error);
     }
     
-    alert("Link copied to clipboard!");
+    addToast("Link copied to clipboard!", "success");
   }
 
   async function handleDelete() {
@@ -162,7 +165,7 @@ export default function Post({ id, author, content, media, created_at, upvotes, 
       if (res.ok) {
         window.dispatchEvent(new CustomEvent("post-deleted", { detail: { id } }));
       } else {
-        alert("Failed to delete post");
+        addToast("Failed to delete post", "error");
       }
     } catch (e) {
       console.error(e);
@@ -185,7 +188,7 @@ export default function Post({ id, author, content, media, created_at, upvotes, 
         setIsEditing(false);
         setDisplayContent(editContent);
       } else {
-        alert("Failed to edit post");
+        addToast("Failed to edit post", "error");
       }
     } catch (e) {
       console.error(e);

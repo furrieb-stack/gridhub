@@ -95,10 +95,20 @@ async def create_post(
 
     author = db.query(User).filter(User.id == new_post.user_id).first()
     author_dict = {
+        "id": author.id,
         "username": author.username,
+        "email": author.email,
         "display_name": author.display_name,
         "avatar_url": author.avatar_url,
+        "banner_url": author.banner_url,
+        "bio": author.bio,
         "is_verified": author.is_verified,
+        "is_admin": author.is_admin,
+        "is_mod": author.is_mod,
+        "is_banned": author.is_banned,
+        "is_private": author.is_private if hasattr(author, 'is_private') else False,
+        "privacy_settings": author.privacy_settings,
+        "created_at": author.created_at,
     } if author else None
 
     hashtags_in_content = re.findall(r"#[\wа-яёА-ЯЁ-]+", new_post.content)
@@ -315,10 +325,20 @@ async def get_saved_posts(
     for post in posts_sorted:
         author = author_map.get(post.user_id)
         author_dict = {
+            "id": author.id,
             "username": author.username,
+            "email": author.email,
             "display_name": author.display_name,
             "avatar_url": author.avatar_url,
+            "banner_url": author.banner_url,
+            "bio": author.bio,
             "is_verified": author.is_verified,
+            "is_admin": author.is_admin,
+            "is_mod": author.is_mod,
+            "is_banned": author.is_banned,
+            "is_private": author.is_private if hasattr(author, 'is_private') else False,
+            "privacy_settings": author.privacy_settings,
+            "created_at": author.created_at,
         } if author else None
 
         post_dict = {

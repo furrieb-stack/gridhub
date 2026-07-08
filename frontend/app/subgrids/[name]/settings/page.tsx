@@ -117,12 +117,23 @@ export default function SubgridSettings({ params }: { params: Promise<{ name: st
     }
   };
 
-  if (!user || loading) return null;
+  if (!user || loading) {
+    return (
+      <div className="min-h-screen flex justify-center items-center bg-[#12110f]">
+        <div className="w-10 h-10 rounded-full border-4 border-[#FFD190] border-t-transparent animate-spin" />
+      </div>
+    );
+  }
 
   if (fetchError) {
     return (
       <div className="min-h-screen flex items-center justify-center text-white/50 bg-[#12110f]">
-        <p className="text-[15px]">{fetchError}</p>
+        <div className="flex flex-col items-center gap-4">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="opacity-50">
+            <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          <p className="text-[16px] font-medium">{fetchError}</p>
+        </div>
       </div>
     );
   }
@@ -130,7 +141,22 @@ export default function SubgridSettings({ params }: { params: Promise<{ name: st
   if (subgrid && subgrid.owner_id !== user.id && !user.is_admin && !isMod) {
     return (
       <div className="min-h-screen flex items-center justify-center text-white bg-[#12110f]">
-        You do not have permission to view this page.
+        <div className="flex flex-col items-center gap-3 text-center px-6">
+          <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center text-red-400 mb-2">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+          </div>
+          <h2 className="text-[20px] font-bold">Access Denied</h2>
+          <p className="text-white/50 text-[14px]">You do not have permission to edit this community's settings.</p>
+          <button 
+            onClick={() => router.back()}
+            className="mt-4 px-6 py-2.5 rounded-full bg-white/10 text-white font-medium hover:bg-white/20 transition-colors"
+          >
+            Go Back
+          </button>
+        </div>
       </div>
     );
   }
@@ -138,106 +164,156 @@ export default function SubgridSettings({ params }: { params: Promise<{ name: st
   return (
     <div className="min-h-screen pb-20 md:pb-0 bg-[#12110f]">
       <div className="hidden md:block"><Navbar /></div>
-      <main className="md:ml-[250px] min-h-screen flex justify-center px-4 md:px-8 py-8 md:py-12">
-        <div className="w-full max-w-[800px]">
+      
+      <main className="md:ml-[250px] min-h-screen flex justify-center px-4 md:px-8 py-6 md:py-10">
+        <div className="w-full max-w-[640px] animate-in fade-in slide-in-from-bottom-4 duration-500">
+          
           <div className="flex items-center justify-between mb-8">
-            <h1 className="text-white text-[28px] md:text-[32px] font-bold tracking-tight">
+            <h1 className="text-white text-[24px] md:text-[28px] font-black tracking-tight">
               Community Settings
             </h1>
             <button
               onClick={() => router.push(`/subgrids/${subgrid.name}`)}
-              className="px-4 py-2 rounded-full border border-white/20 text-white hover:bg-white/5 transition-colors text-[14px]"
+              className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-white hover:bg-white/10 hover:border-white/20 transition-colors text-[13px] font-medium"
             >
-              View Community
+              View Grid
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
             </button>
           </div>
 
-          <div className="bg-[#1a1a1a] rounded-3xl border border-white/[0.04] overflow-hidden">
-            <div className="p-6 md:p-8">
-              <div className="flex flex-col md:flex-row gap-8 items-start">
-                <div className="flex flex-col gap-6 w-full md:w-[240px] shrink-0">
-                  <div className="relative w-[120px] h-[120px] rounded-full border-4 border-[#12110f] bg-[#12110f] overflow-hidden mx-auto md:mx-0 group">
-                    {subgrid?.avatar_url ? (
-                      <img src={mediaUrl(subgrid.avatar_url)} alt="Avatar" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full bg-[#FFD190] flex items-center justify-center font-bold text-[#12110f] text-[40px]">
-                        {subgrid?.name?.charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                    <button
-                      onClick={() => avatarInput.current?.click()}
-                      className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <span className="text-white text-[13px] font-medium">Change</span>
-                    </button>
-                    <input type="file" ref={avatarInput} className="hidden" accept="image/*" onChange={(e) => handleUploadMedia(e, "avatar")} />
-                  </div>
-
-                  <div className="relative h-24 w-full rounded-xl bg-white/5 group overflow-hidden">
-                    {subgrid?.banner_url ? (
-                      <img src={mediaUrl(subgrid.banner_url)} alt="Banner" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full bg-gradient-to-tr from-[#FFD190]/20 via-purple-500/20 to-blue-500/20" />
-                    )}
-                    <button
-                      onClick={() => bannerInput.current?.click()}
-                      className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <span className="text-white text-[13px] font-medium">Change Banner</span>
-                    </button>
-                    <input type="file" ref={bannerInput} className="hidden" accept="image/*" onChange={(e) => handleUploadMedia(e, "banner")} />
-                  </div>
+          <div className="space-y-8">
+            {/* Media Block (Banner & Avatar) */}
+            <div className="relative mb-14">
+              <div className="relative h-48 w-full rounded-[24px] overflow-hidden bg-white/5 border border-white/[0.08] shadow-sm group">
+                {subgrid?.banner_url ? (
+                  <img src={mediaUrl(subgrid.banner_url)} alt="Banner" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-tr from-[#FFD190]/20 via-purple-500/10 to-blue-500/10" />
+                )}
+                <div className="absolute inset-0 bg-black/50 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center">
+                  <button onClick={() => bannerInput.current?.click()} className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/10 text-white font-medium hover:bg-white/25 transition-colors">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                      <circle cx="12" cy="13" r="4" />
+                    </svg>
+                    <span className="text-[14px]">Change Banner</span>
+                  </button>
                 </div>
-
-                <div className="flex-1 flex flex-col gap-6 w-full">
-                  <div className="flex flex-col gap-2">
-                    <label className="text-white/60 text-[13px] font-medium uppercase tracking-wider">Display Name</label>
-                    <input
-                      type="text"
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
-                      placeholder="Display Name"
-                      className="w-full h-12 px-4 rounded-[12px] bg-[#12110f] border border-white/[0.04] text-white text-[15px] focus:outline-none focus:border-white/20 transition-colors"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-white/60 text-[13px] font-medium uppercase tracking-wider">Description</label>
-                    <textarea
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      placeholder="Tell the community what this subgrid is about..."
-                      rows={4}
-                      className="w-full p-4 rounded-[12px] bg-[#12110f] border border-white/[0.04] text-white text-[15px] focus:outline-none focus:border-white/20 transition-colors resize-none"
-                    />
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      id="isNsfw"
-                      checked={isNsfw}
-                      onChange={(e) => setIsNsfw(e.target.checked)}
-                      className="w-5 h-5 accent-[#FFD190] bg-[#12110f] border-white/20 rounded cursor-pointer"
-                    />
-                    <label htmlFor="isNsfw" className="text-white text-[15px] cursor-pointer font-medium">
-                      Mark as NSFW
-                    </label>
+              </div>
+              
+              <div className="absolute left-6 md:left-8 -bottom-10 z-10 group">
+                <div className="relative w-[96px] h-[96px] rounded-full border-[4px] border-[#12110f] bg-[#1a1a1a] overflow-hidden shadow-xl">
+                  {subgrid?.avatar_url ? (
+                    <img src={mediaUrl(subgrid.avatar_url)} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-[#FFD190] flex items-center justify-center font-bold text-[#12110f] text-[36px]">
+                      {subgrid?.name?.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div 
+                    className="absolute inset-0 bg-black/50 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center cursor-pointer" 
+                    onClick={() => avatarInput.current?.click()}
+                  >
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="text-white">
+                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                      <circle cx="12" cy="13" r="4" />
+                    </svg>
                   </div>
                 </div>
               </div>
+              
+              <input type="file" hidden ref={avatarInput} onChange={(e) => handleUploadMedia(e, "avatar")} accept="image/*" />
+              <input type="file" hidden ref={bannerInput} onChange={(e) => handleUploadMedia(e, "banner")} accept="image/*" />
             </div>
 
-            <div className="p-6 md:p-8 bg-black/20 border-t border-white/[0.04] flex justify-end">
+            {/* Inputs Block */}
+            <div className="space-y-5">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-white/60 text-[13px] font-semibold uppercase tracking-wide ml-1">Grid URL</label>
+                <div className="flex items-center">
+                  <span className="h-12 px-4 flex items-center rounded-l-[14px] bg-white/[0.02] border border-r-0 border-white/[0.04] text-white/40 text-[15px]">
+                    gridhub.com/
+                  </span>
+                  <input
+                    defaultValue={subgrid.name}
+                    readOnly
+                    className="flex-1 h-12 pr-4 rounded-r-[14px] bg-white/[0.02] border border-white/[0.04] text-white/40 text-[15px] outline-none cursor-not-allowed"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-white/60 text-[13px] font-semibold uppercase tracking-wide ml-1">Display Name</label>
+                <input
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="e.g. Next.js Developers"
+                  className="w-full h-12 px-4 rounded-[14px] bg-white/[0.03] border border-white/[0.06] text-white text-[15px] outline-none focus:bg-white/[0.05] focus:border-[#FFD190]/60 focus:ring-1 focus:ring-[#FFD190]/30 transition-all placeholder:text-white/20"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-white/60 text-[13px] font-semibold uppercase tracking-wide ml-1">Description</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Tell the world what this community is about..."
+                  rows={4}
+                  className="w-full px-4 py-3 rounded-[14px] bg-white/[0.03] border border-white/[0.06] text-white text-[15px] outline-none resize-none focus:bg-white/[0.05] focus:border-[#FFD190]/60 focus:ring-1 focus:ring-[#FFD190]/30 transition-all placeholder:text-white/20"
+                />
+              </div>
+
+              {/* NSFW Toggle Block */}
+              <div className="flex items-center justify-between p-5 rounded-[16px] bg-red-500/5 border border-red-500/10 mt-2">
+                <div className="pr-4">
+                  <p className="text-red-400 font-bold text-[15px] flex items-center gap-2">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                      <line x1="12" y1="9" x2="12" y2="13" />
+                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                    NSFW Community
+                  </p>
+                  <p className="text-red-400/60 text-[13px] mt-1 leading-relaxed">
+                    Mark this community as 18+. Users will be warned before entering.
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={isNsfw}
+                    onChange={(e) => setIsNsfw(e.target.checked)}
+                  />
+                  <div className="w-12 h-6 bg-red-500/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-[24px] peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-500 peer-checked:after:bg-white peer-checked:after:border-none border border-red-500/30" />
+                </label>
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <div className="pt-4 border-t border-white/[0.06]">
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="px-8 py-3 rounded-full bg-[#FFD190] text-[#12110f] font-bold text-[15px] hover:bg-[#ffe3bc] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full md:w-auto px-10 py-3.5 bg-[#FFD190] text-[#12110f] text-[15px] font-bold rounded-[14px] hover:bg-[#ffe3bc] transition-all active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 shadow-[0_4px_14px_rgba(255,209,144,0.15)] flex justify-center items-center"
               >
-                {saving ? "Saving..." : "Save Changes"}
+                {saving ? (
+                  <div className="w-5 h-5 rounded-full border-2 border-[#12110f]/20 border-t-[#12110f] animate-spin" />
+                ) : (
+                  "Save Changes"
+                )}
               </button>
             </div>
+            
           </div>
         </div>
       </main>
+      
       <div className="block md:hidden"><MobileNav /></div>
     </div>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { uploadStory, createStoryFromUrl } from "@/lib/api";
+import { uploadStory } from "@/lib/api";
 
 interface StoryUploadModalProps {
   onClose: () => void;
@@ -9,9 +9,6 @@ interface StoryUploadModalProps {
 }
 
 export default function StoryUploadModal({ onClose, onStoryCreated }: StoryUploadModalProps) {
-  const [tab, setTab] = useState<"file" | "url">("file");
-  const [url, setUrl] = useState("");
-  const [urlType, setUrlType] = useState("image");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [visible, setVisible] = useState(false);
@@ -24,34 +21,28 @@ export default function StoryUploadModal({ onClose, onStoryCreated }: StoryUploa
 
   function handleClose() {
     setVisible(false);
-    setTimeout(onClose, 300);
+    setTimeout(() => {
+      onClose();
+      if (preview) URL.revokeObjectURL(preview);
+    }, 300);
   }
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const objectUrl = URL.createObjectURL(file);
+    setPreview(objectUrl);
     setUploading(true);
     setError("");
+
     try {
       await uploadStory(file);
       onStoryCreated();
       handleClose();
     } catch (err: any) {
       setError(err.message ?? "Upload failed");
-    }
-    setUploading(false);
-  }
-
-  async function handleUrlSubmit() {
-    if (!url.trim()) return;
-    setUploading(true);
-    setError("");
-    try {
-      await createStoryFromUrl(url.trim(), urlType);
-      onStoryCreated();
-      handleClose();
-    } catch (err: any) {
-      setError(err.message ?? "Failed to create story");
+      setPreview(null);
     }
     setUploading(false);
   }
@@ -66,109 +57,79 @@ export default function StoryUploadModal({ onClose, onStoryCreated }: StoryUploa
         visible ? "opacity-100" : "opacity-0"
       }`}
     >
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={handleClose} />
+      <div 
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity" 
+        onClick={!uploading ? handleClose : undefined} 
+      />
 
       <div
-        className={`relative w-full md:max-w-sm bg-[#1a1a1a] rounded-t-[24px] md:rounded-[24px] p-6 transition-all duration-300 ${
-          visible ? "translate-y-0" : "translate-y-full md:translate-y-4 md:scale-95"
+        className={`relative w-full md:w-full md:max-w-[400px] bg-[#1a1a1a] rounded-t-[32px] md:rounded-[24px] shadow-2xl flex flex-col transition-all duration-300 cubic-bezier(0.32, 0.72, 0, 1) ${
+          visible ? "translate-y-0 scale-100" : "translate-y-full md:translate-y-8 md:scale-95"
         }`}
       >
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-white text-[18px] font-bold">Add to story</h2>
-          <button onClick={handleClose} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth={2.5} strokeLinecap="round">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
+        <div className="w-full flex justify-center pt-3 pb-1 md:hidden">
+          <div className="w-12 h-1.5 bg-white/20 rounded-full" />
         </div>
 
-        <div className="flex gap-2 mb-5">
-          <button
-            onClick={() => setTab("file")}
-            className={`flex-1 py-2.5 rounded-[12px] text-[13px] font-medium transition-colors ${
-              tab === "file" ? "bg-[#FFD190] text-[#12110f]" : "text-white/50 bg-white/5"
-            }`}
-          >
-            Upload file
-          </button>
-          <button
-            onClick={() => setTab("url")}
-            className={`flex-1 py-2.5 rounded-[12px] text-[13px] font-medium transition-colors ${
-              tab === "url" ? "bg-[#FFD190] text-[#12110f]" : "text-white/50 bg-white/5"
-            }`}
-          >
-            Link from web
-          </button>
-        </div>
+        <div className="px-6 pt-2 md:pt-6 pb-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-white text-[20px] font-bold tracking-tight">Add to Story</h2>
+            <button 
+              onClick={handleClose} 
+              disabled={uploading}
+              className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-50"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
 
-        {error && (
-          <p className="text-red-400 text-[13px] mb-3">{error}</p>
-        )}
+          {error && (
+            <div className="mb-4 px-4 py-3 rounded-[12px] bg-red-500/10 border border-red-500/20 text-red-400 text-[13px] font-medium flex items-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              {error}
+            </div>
+          )}
 
-        {tab === "file" ? (
           <div>
             <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFile} />
             <button
               onClick={pickFile}
               disabled={uploading}
-              className="w-full h-32 rounded-[16px] border-2 border-dashed border-white/20 flex flex-col items-center justify-center gap-2 hover:border-[#FFD190]/50 hover:bg-white/5 transition-colors cursor-pointer"
+              className="relative w-full aspect-[4/5] max-h-[360px] rounded-[20px] border-2 border-dashed border-white/10 flex flex-col items-center justify-center gap-4 hover:border-[#FFD190]/50 hover:bg-white/[0.02] transition-all overflow-hidden group cursor-pointer"
             >
-              {uploading ? (
-                <div className="w-8 h-8 rounded-full border-2 border-[#FFD190] border-t-transparent animate-spin" />
+              {preview ? (
+                <>
+                  <img src={preview} alt="Preview" className="absolute inset-0 w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
+                    <div className="w-10 h-10 rounded-full border-[3px] border-white/20 border-t-[#FFD190] animate-spin" />
+                    <span className="text-white font-semibold text-[14px] drop-shadow-md">Uploading...</span>
+                  </div>
+                </>
               ) : (
                 <>
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth={1.5}>
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="17 8 12 3 7 8" />
-                    <line x1="12" y1="3" x2="12" y2="15" />
-                  </svg>
-                  <span className="text-white/40 text-[13px]">Tap to select photo or video</span>
+                  <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                      <circle cx="8.5" cy="8.5" r="1.5" />
+                      <polyline points="21 15 16 10 5 21" />
+                    </svg>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-white/80 text-[15px] font-semibold">Tap to browse</p>
+                    <p className="text-white/40 text-[13px] mt-1">Photo or Video</p>
+                  </div>
                 </>
               )}
             </button>
-            {preview && (
-              <div className="mt-3 rounded-[12px] overflow-hidden max-h-48">
-                <img src={preview} alt="" className="w-full h-full object-cover" />
-              </div>
-            )}
           </div>
-        ) : (
-          <div>
-            <div className="flex gap-2 mb-3">
-              <button
-                onClick={() => setUrlType("image")}
-                className={`px-3 py-1.5 rounded-[8px] text-[12px] font-medium transition-colors ${
-                  urlType === "image" ? "bg-white/15 text-white" : "text-white/40 bg-white/5"
-                }`}
-              >
-                Image
-              </button>
-              <button
-                onClick={() => setUrlType("video")}
-                className={`px-3 py-1.5 rounded-[8px] text-[12px] font-medium transition-colors ${
-                  urlType === "video" ? "bg-white/15 text-white" : "text-white/40 bg-white/5"
-                }`}
-              >
-                Video
-              </button>
-            </div>
-            <input
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="Paste image or video URL..."
-              className="w-full h-11 px-4 rounded-[12px] text-white text-[14px] outline-none placeholder:text-white/25 bg-white/5 border border-white/10 focus:border-[#FFD190]/50 transition-colors"
-            />
-            <button
-              onClick={handleUrlSubmit}
-              disabled={uploading || !url.trim()}
-              className="w-full h-11 mt-3 rounded-[12px] bg-[#FFD190] text-[#12110f] text-[14px] font-bold hover:bg-[#ffe3bc] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {uploading ? "Adding..." : "Add to story"}
-            </button>
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );

@@ -111,12 +111,14 @@ export function saveTokens(
   localStorage.setItem("access_token", accessToken);
   localStorage.setItem("refresh_token", refreshToken);
   localStorage.setItem("user", JSON.stringify(user));
+  document.cookie = `access_token=${accessToken}; path=/; max-age=86400; SameSite=Lax`;
 }
 
 export function clearTokens() {
   localStorage.removeItem("access_token");
   localStorage.removeItem("refresh_token");
   localStorage.removeItem("user");
+  document.cookie = "access_token=; path=/; max-age=0; SameSite=Lax";
 }
 
 export function getStoredUser(): User | null {

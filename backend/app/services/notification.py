@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from database import Notification
 from app.core.redis import redis_client
+from app.api.push import send_push_notification
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +67,22 @@ def create_notification(db: Session, user_id: int, type: str, data: dict):
             "created_at": notification.created_at.isoformat(),
         },
     }
+
+    message_text = data.get("message", type)
+    push_title = "Gridhub"
+    match type:
+        case "follow":
+            push_title = f"{data.get('user', 'Someone')} followed you"
+        case "upvote":
+            push_title = f"{data.get('user', 'Someone')} upvoted your post"
+        case "comment":
+            push_title = f"{data.get('comment_author', 'Someone')} commented on your post"
+        case "subgrid_moderator":
+            push_title = f"You're now a moderator of {data.get('subgrid_name', 'a subgrid')}"
+        case _:
+            push_title = message_text
+
+    send_push_notification(user_id, push_title, message_text)
 
     async def send_notification():
         await manager.send_personal_message(notification_data, user_id)

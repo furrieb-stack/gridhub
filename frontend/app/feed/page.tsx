@@ -147,7 +147,8 @@ export default function FeedPage() {
 
       <div className="md:ml-[250px] flex justify-center px-4 md:px-6 py-4 md:py-6">
         <div className="w-full max-w-[600px]">
-          <div className="relative">
+          
+          <div className="relative mb-2">
             <svg
               className="absolute left-4 top-1/2 -translate-y-1/2"
               width="18" height="18" viewBox="0 0 24 24" fill="none"
@@ -160,24 +161,28 @@ export default function FeedPage() {
               placeholder="Search Gridhub"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-11 pl-11 pr-4 rounded-full border-none text-white text-[14px] outline-none transition-all duration-200 placeholder:text-white/25"
+              className="w-full h-11 pl-11 pr-4 rounded-full border-none text-white text-[14px] outline-none transition-all duration-200 placeholder:text-white/30 focus:bg-white/[0.08]"
               style={{ backgroundColor: "rgba(255,255,255,0.04)" }}
             />
           </div>
 
           <Stories />
 
-          <div className="flex items-center gap-2 mt-4 mb-4 overflow-x-auto no-scrollbar">
+          {/* iOS / Telegram style Segmented Control */}
+          <div className="flex items-center w-full gap-1 p-1 bg-white/5 rounded-[12px] mt-4 mb-6">
             {FILTERS.map((f, i) => (
               <button
                 key={f.label}
-                onClick={() => setFilterIndex(i)}
-                className={`px-4 py-1.5 rounded-[8px] text-[13px] font-medium whitespace-nowrap transition-colors ${
+                onClick={() => {
+                  setFilterIndex(i);
+                  setSkip(0);
+                  setHasMore(true);
+                }}
+                className={`flex-1 py-2 rounded-[8px] text-[13px] font-bold transition-all duration-200 ${
                   i === filterIndex
-                    ? "bg-[#FFD190] text-[#12110f]"
-                    : "text-white/40 hover:text-white/70"
+                    ? "bg-[#FFD190] text-[#12110f] shadow-sm"
+                    : "text-white/40 hover:text-white/70 hover:bg-white/5"
                 }`}
-                style={i !== filterIndex ? { backgroundColor: "rgba(255,255,255,0.04)" } : {}}
               >
                 {f.label}
               </button>
@@ -194,17 +199,19 @@ export default function FeedPage() {
             })}
             
             {loading && (
-              <div className="flex justify-center py-6">
-                <div className="w-8 h-8 rounded-full border-2 border-[#FFD190] border-t-transparent animate-spin" />
+              <div className="flex justify-center py-8">
+                <div className="w-8 h-8 rounded-full border-[3px] border-[#FFD190] border-t-transparent animate-spin" />
               </div>
             )}
             
             {!loading && posts.length === 0 && (
               <div className="flex flex-col items-center justify-center py-20 gap-4 text-white/40 text-[15px]">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth={1.5}>
-                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-                </svg>
-                <p>No posts found</p>
+                <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+                  </svg>
+                </div>
+                <p className="font-medium">No posts found</p>
               </div>
             )}
           </div>

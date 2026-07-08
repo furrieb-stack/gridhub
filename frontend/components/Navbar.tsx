@@ -6,6 +6,7 @@ import Link from "next/link";
 import { clearTokens, getStoredUser, type User } from "@/lib/api";
 import Avatar from "@/components/Avatar";
 import NewPostModal from "@/components/NewPostModal";
+import { useToast } from "@/components/ToastProvider";
 
 interface NavItem {
   label: string;
@@ -90,6 +91,7 @@ export default function Navbar() {
   const [selectedSubgridId, setSelectedSubgridId] = useState<number | undefined>(undefined);
   const [showSubgridPicker, setShowSubgridPicker] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const { addToast } = useToast();
 
   useEffect(() => {
     setUser(getStoredUser());
@@ -125,6 +127,14 @@ export default function Navbar() {
       try {
         const data = JSON.parse(event.data);
         setUnreadCount(data.unread_count);
+      } catch (e) { console.error(e); }
+    });
+
+    eventSource.addEventListener("notification", (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        const msg = (data.data?.message as string) ?? data.type;
+        addToast(msg, "info");
       } catch (e) { console.error(e); }
     });
 

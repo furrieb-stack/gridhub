@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFi
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from database import get_db, User, Subgrid, SubgridSubscription, SubgridModerator
-from app.core.deps import limiter, get_current_active_user
+from database import get_db, User, Subgrid, SubgridSubscription, SubgridModerator, Post
+from app.core.deps import limiter, get_current_active_user, get_optional_user
 from app.schemas.subgrid import SubgridCreate, SubgridUpdate, SubgridResponse
 from app.schemas.auth import UserResponse
 from app.utils.helpers import validate_url
@@ -50,7 +50,7 @@ async def get_subgrids(
     limit: int = 50,
     search: str = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_optional_user),
 ):
     query = db.query(Subgrid)
     if search:
@@ -165,7 +165,7 @@ async def get_my_subgrids(
 async def get_subgrid_by_name(
     name: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_optional_user),
 ):
     subgrid = db.query(Subgrid).filter(Subgrid.name == name).first()
     if not subgrid:
@@ -185,7 +185,8 @@ async def get_subgrid_by_name(
     result.subscriber_count = subscriber_count
     result.moderator_count = moderator_count
     result.is_subscribed = (
-        db.query(SubgridSubscription)
+        current_user is not None
+        and db.query(SubgridSubscription)
         .filter(
             SubgridSubscription.subgrid_id == subgrid.id,
             SubgridSubscription.user_id == current_user.id,
@@ -229,6 +230,41 @@ async def get_subgrid(
         is not None
     )
     return result
+
+
+@router.get("/top-list")
+async def get_top_subgrids(db: Session = Depends(get_db)):
+    subgrids = (
+        db.query(
+            Subgrid.id,
+            Subgrid.name,
+            Subgrid.display_name,
+            Subgrid.avatar_url,
+            Subgrid.description,
+            Subgrid.is_nsfw,
+            func.count(SubgridSubscription.user_id).label("subscriber_count"),
+            func.count(Post.id).label("post_count"),
+        )
+        .outerjoin(SubgridSubscription, SubgridSubscription.subgrid_id == Subgrid.id)
+        .outerjoin(Post, Post.subgrid_id == Subgrid.id)
+        .group_by(Subgrid.id, Subgrid.name, Subgrid.display_name, Subgrid.avatar_url, Subgrid.description, Subgrid.is_nsfw)
+        .order_by(func.count(SubgridSubscription.user_id).desc())
+        .limit(20)
+        .all()
+    )
+    return [
+        {
+            "id": s.id,
+            "name": s.name,
+            "display_name": s.display_name,
+            "avatar_url": s.avatar_url,
+            "description": s.description,
+            "is_nsfw": s.is_nsfw,
+            "subscriber_count": s.subscriber_count,
+            "post_count": s.post_count,
+        }
+        for s in subgrids
+    ]
 
 
 @router.put("/{subgrid_id}", response_model=SubgridResponse)

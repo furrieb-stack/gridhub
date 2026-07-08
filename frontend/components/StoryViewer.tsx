@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { mediaUrl, toggleStoryLike, fetchStoryFollowStatus } from "@/lib/api";
+import { mediaUrl, toggleStoryLike, fetchStoryFollowStatus, getStoredUser } from "@/lib/api";
 import type { StoryGroupData } from "@/lib/api";
 
 interface StoryViewerProps {
@@ -14,6 +14,7 @@ interface StoryViewerProps {
 
 export default function StoryViewer({ group, onClose, onPrevUser, onNextUser, onFollowChange }: StoryViewerProps) {
   const { stories, author, user_id } = group;
+  const currentUser = getStoredUser();
   const [index, setIndex] = useState(0);
   const [liked, setLiked] = useState(stories[0]?.is_liked ?? false);
   const [likesCount, setLikesCount] = useState(stories[0]?.likes_count ?? 0);
@@ -257,7 +258,7 @@ export default function StoryViewer({ group, onClose, onPrevUser, onNextUser, on
                 {author.username}
               </span>
               
-              {!isFollowing && user_id !== -1 && (
+              {!isFollowing && user_id !== -1 && currentUser?.id !== user_id && (
                 <>
                   <span className="text-white/60 text-[10px]">•</span>
                   <button

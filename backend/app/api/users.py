@@ -4,8 +4,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 
-from database import get_db, User, Follow, Karma, Post, VerificationRequest
+from database import get_db, User, Follow, Karma, Post, VerificationRequest, Karma
 from app.core.deps import get_current_active_user, get_optional_user
+from sqlalchemy import func
 from app.schemas.auth import UserResponse, UserUpdate, ProfileResponse
 from app.schemas.misc import KarmaResponse
 from app.utils.helpers import sanitize_content, validate_url, update_karma
@@ -242,6 +243,31 @@ async def get_follow_counts(
     followers = db.query(Follow).filter(Follow.followed_id == user_id).count()
     following = db.query(Follow).filter(Follow.follower_id == user_id).count()
     return {"followers": followers, "following": following}
+
+
+@router.get("/top-list")
+async def get_top_users(db: Session = Depends(get_db)):
+    print("GET_TOP_USERS CALLED", flush=True)
+    users = (
+        db.query(User, func.coalesce(Karma.post_karma, 0) + func.coalesce(Karma.comment_karma, 0))
+        .outerjoin(Karma, Karma.user_id == User.id)
+        .filter(User.is_banned == False)
+        .order_by((func.coalesce(Karma.post_karma, 0) + func.coalesce(Karma.comment_karma, 0)).desc())
+        .limit(20)
+        .all()
+    )
+    return [
+        {
+            "id": u.id,
+            "username": u.username,
+            "display_name": u.display_name,
+            "avatar_url": u.avatar_url,
+            "karma_points": karma_total or 0,
+            "is_verified": u.is_verified,
+            "follower_count": db.query(Follow).filter(Follow.followed_id == u.id).count(),
+        }
+        for u, karma_total in users
+    ]
 
 
 @router.get("/{user_id}/karma", response_model=KarmaResponse)

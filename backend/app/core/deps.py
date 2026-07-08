@@ -1,6 +1,6 @@
 from typing import Optional
 
-from fastapi import Depends, HTTPException, status, Request
+from fastapi import Depends, HTTPException, status, Request, Cookie
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.responses import JSONResponse
 from slowapi import Limiter
@@ -12,20 +12,31 @@ from database import get_db, User
 from app.core.security import get_user_from_token
 from app.core.config import MAX_REQUESTS_PER_MINUTE
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/login-form")
-
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/login-form", auto_error=False)
 limiter = Limiter(key_func=get_remote_address, default_limits=[f"{MAX_REQUESTS_PER_MINUTE}/minute"])
 
 
+async def _extract_token(
+    token: Optional[str] = Depends(oauth2_scheme),
+    access_token: Optional[str] = Cookie(None),
+) -> Optional[str]:
+    t = token or access_token
+    if not t or not t.strip():
+        return None
+    return t
+
+
 async def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    token: Optional[str] = Depends(_extract_token),
     db: Session = Depends(get_db),
 ) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
+        detail="Not authenticated",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    if not token:
+        raise credentials_exception
     user = get_user_from_token(token, db)
     if not user:
         raise credentials_exception
@@ -51,7 +62,7 @@ async def get_current_admin_user(
 
 
 async def get_optional_user(
-    token: Optional[str] = Depends(oauth2_scheme),
+    token: Optional[str] = Depends(_extract_token),
     db: Session = Depends(get_db),
 ) -> Optional[User]:
     if not token:

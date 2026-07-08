@@ -52,6 +52,7 @@ class User(Base):
     subgrids = relationship("Subgrid", back_populates="owner", cascade="all, delete-orphan")
     karma = relationship("Karma", back_populates="user", cascade="all, delete-orphan", uselist=False)
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
+    push_subscriptions = relationship("PushSubscription", back_populates="user", cascade="all, delete-orphan")
 
 # //Subgrid model
 class Subgrid(Base):
@@ -281,6 +282,19 @@ class PostView(Base):
     
     user = relationship("User")
     post = relationship("Post")
+
+# //PushSubscription
+class PushSubscription(Base):
+    __tablename__ = "push_subscriptions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    endpoint = Column(String(500), nullable=False)
+    p256dh = Column(String(255), nullable=False)
+    auth = Column(String(255), nullable=False)
+    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+
+    user = relationship("User", back_populates="push_subscriptions")
 
 # //Follow/Subscription
 class Follow(Base):

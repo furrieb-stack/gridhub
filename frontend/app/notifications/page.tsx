@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getStoredUser, type User } from "@/lib/api";
 import Navbar from "@/components/Navbar";
 import MobileNav from "@/components/MobileNav";
 import Timestamp from "@/components/Timestamp";
+import { useToast } from "@/components/ToastProvider";
 
 interface NotificationData {
   id: number;
@@ -15,8 +16,54 @@ interface NotificationData {
   created_at: string;
 }
 
+function NotificationIcon({ type }: { type: string }) {
+  const c = "rgba(255,255,255,0.5)";
+  const props = { width: 16, height: 16, fill: c, viewBox: "0 0 24 24" };
+
+  if (type === "upvote" || type === "like") {
+    return (
+      <svg {...props}>
+        <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
+      </svg>
+    );
+  }
+  if (type === "comment") {
+    return (
+      <svg {...props}>
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      </svg>
+    );
+  }
+  if (type === "follow") {
+    return (
+      <svg {...props}>
+        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+        <circle cx="8.5" cy="7" r="4" />
+        <line x1="20" y1="8" x2="20" y2="14" />
+        <line x1="23" y1="11" x2="17" y2="11" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...props}>
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+    </svg>
+  );
+}
+
+function getNotificationLabel(type: string): string {
+  switch (type) {
+    case "upvote": return "Upvote";
+    case "comment": return "Comment";
+    case "follow": return "Follow";
+    case "subgrid_moderator": return "Moderator";
+    default: return type;
+  }
+}
+
 export default function NotificationsPage() {
   const router = useRouter();
+  const { addToast } = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [notifications, setNotifications] = useState<NotificationData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,6 +97,22 @@ export default function NotificationsPage() {
     load();
   }, []);
 
+  const handleMarkAsRead = useCallback(async (id: number) => {
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+    try {
+      const res = await fetch(`/api/notifications/${id}/read`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
   async function handleMarkAllAsRead() {
     const token = localStorage.getItem("access_token");
     if (!token) return;
@@ -60,11 +123,14 @@ export default function NotificationsPage() {
       });
       if (res.ok) {
         setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+        addToast("All notifications marked as read", "success");
       }
     } catch (e) {
       console.error(e);
     }
   }
+
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   if (!user) return null;
 
@@ -74,11 +140,18 @@ export default function NotificationsPage() {
       <main className="md:ml-[250px] min-h-screen flex justify-center px-4 md:px-6 py-6 md:py-8">
         <div className="w-full max-w-[600px]">
           <div className="flex items-center justify-between mb-6">
-            <h1 className="text-[20px] font-bold text-white">Notifications</h1>
-            {notifications.some(n => !n.read) && (
-              <button 
+            <div className="flex items-center gap-3">
+              <h1 className="text-[22px] font-bold text-white">Notifications</h1>
+              {unreadCount > 0 && (
+                <span className="px-2.5 py-0.5 rounded-full bg-[#FFD190]/15 text-[#FFD190] text-[12px] font-bold">
+                  {unreadCount} new
+                </span>
+              )}
+            </div>
+            {unreadCount > 0 && (
+              <button
                 onClick={handleMarkAllAsRead}
-                className="text-[#FFD190] text-[14px] font-semibold hover:underline"
+                className="text-[#FFD190] text-[14px] font-semibold hover:underline transition-all hover:brightness-110"
               >
                 Mark all as read
               </button>
@@ -90,44 +163,61 @@ export default function NotificationsPage() {
               <div className="w-8 h-8 rounded-full border-2 border-[#FFD190] border-t-transparent animate-spin" />
             </div>
           ) : notifications.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 gap-4">
-              <div className="w-14 h-14 rounded-full bg-white/[0.04] flex items-center justify-center">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth={1.5}>
-                  <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />
+            <div className="flex flex-col items-center justify-center py-20 gap-4 animate-in fade-in duration-500">
+              <div className="w-16 h-16 rounded-2xl bg-white/[0.03] flex items-center justify-center border border-white/[0.04]">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth={1.5}>
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
                 </svg>
               </div>
               <p className="text-white/30 text-[15px]">No notifications yet</p>
-              <p className="text-white/20 text-[13px]">When someone interacts with your content, it&apos;ll show up here</p>
+              <p className="text-white/20 text-[13px] text-center max-w-xs">
+                When someone upvotes your post, comments, or follows you, it&apos;ll show up here
+              </p>
             </div>
           ) : (
-            <div className="flex flex-col gap-1">
-              {notifications.map((n) => (
+            <div className="flex flex-col gap-2">
+              {notifications.map((n, i) => (
                 <div
                   key={n.id}
-                  className="flex items-start gap-3 px-4 py-4 rounded-[16px] transition-colors hover:bg-white/[0.02] cursor-pointer"
-                  style={{ backgroundColor: n.read ? "transparent" : "rgba(255, 209, 144, 0.04)" }}
+                  className="group flex items-start gap-3 px-4 py-4 rounded-[16px] transition-all duration-300 border border-transparent hover:border-white/[0.04]"
+                  style={{
+                    backgroundColor: n.read ? "transparent" : "rgba(255, 209, 144, 0.05)",
+                    animation: `fadeIn 0.3s ease-out ${i * 0.03}s both`,
+                  }}
                 >
-                  <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center shrink-0">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="rgba(255,255,255,0.4)">
-                      {n.type === "like" || n.type === "upvote" ? (
-                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                      ) : n.type === "comment" ? (
-                        <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
-                      ) : n.type === "follow" ? (
-                        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-                      ) : (
-                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                      )}
-                    </svg>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300 ${
+                    n.read ? "bg-white/[0.04]" : "bg-[#FFD190]/10"
+                  }`}>
+                    <NotificationIcon type={n.type} />
                   </div>
+
                   <div className="flex-1 min-w-0">
-                    <p className="text-white/70 text-[14px]">
-                      {n.data?.message as string ?? n.type}
+                    <p className={`text-[14px] leading-relaxed ${
+                      n.read ? "text-white/50" : "text-white/80"
+                    }`}>
+                      {n.data?.message as string ?? getNotificationLabel(n.type)}
                     </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-white/25 text-[12px]">
+                        <Timestamp date={n.created_at} />
+                      </span>
+                      {!n.read && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#FFD190]" />
+                      )}
+                    </div>
                   </div>
-                  <span className="text-white/25 text-[12px] shrink-0">
-                    <Timestamp date={n.created_at} />
-                  </span>
+
+                  {!n.read && (
+                    <button
+                      onClick={() => handleMarkAsRead(n.id)}
+                      className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white/30 hover:text-[#FFD190] hover:bg-[#FFD190]/10 transition-all duration-200 opacity-0 group-hover:opacity-100"
+                      title="Mark as read"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -135,6 +225,13 @@ export default function NotificationsPage() {
         </div>
       </main>
       <div className="block md:hidden"><MobileNav /></div>
+
+      <style jsx>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }

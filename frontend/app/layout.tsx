@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Roboto } from "next/font/google";
 import ThemeProvider from "@/components/ThemeProvider";
 import { ToastProvider } from "@/components/ToastProvider";
+import PushManager from "@/components/PushManager";
 import "./globals.css";
 
 const roboto = Roboto({
@@ -26,6 +27,7 @@ export default function RootLayout({
         <ThemeProvider>
           <ToastProvider>
             {children}
+            <PushManager />
           </ToastProvider>
         </ThemeProvider>
       </body>
