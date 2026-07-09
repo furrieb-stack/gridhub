@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 from typing import Optional
 
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 
@@ -10,7 +12,7 @@ from sqlalchemy import func
 from app.schemas.auth import UserResponse, UserUpdate, ProfileResponse
 from app.schemas.misc import KarmaResponse
 from app.utils.helpers import sanitize_content, validate_url, update_karma
-from app.services.upload import save_upload_file
+from app.services.upload import save_upload_file, AVATAR_ALLOWED_EXTENSIONS
 from app.core.config import AVATAR_DIR, BANNER_DIR
 from app.services.notification import create_notification
 
@@ -42,6 +44,8 @@ async def update_me(
         current_user.banner_url = update_data.banner_url
     if update_data.is_private is not None:
         current_user.is_private = update_data.is_private
+    if update_data.privacy_type is not None:
+        current_user.privacy_type = update_data.privacy_type
     if update_data.privacy_settings is not None:
         current_user.privacy_settings = update_data.privacy_settings
     current_user.updated_at = datetime.now(timezone.utc)
@@ -84,6 +88,9 @@ async def upload_avatar(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
+    ext = Path(file.filename).suffix.lower() if file.filename else ""
+    if ext not in AVATAR_ALLOWED_EXTENSIONS:
+        raise HTTPException(400, f"Avatar must be one of: {', '.join(AVATAR_ALLOWED_EXTENSIONS)}")
     try:
         url = save_upload_file(file, AVATAR_DIR)
         current_user.avatar_url = url

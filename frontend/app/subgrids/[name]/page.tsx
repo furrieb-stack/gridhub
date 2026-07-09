@@ -11,6 +11,20 @@ import MobileNav from "@/components/MobileNav";
 import Post from "@/components/Post";
 import NewPostModal from "@/components/NewPostModal";
 
+const SESSION_CACHE_KEY = "subgrid_session_cache";
+
+function getSessionCache(): Record<string, { data: any; timestamp: number }> {
+  try {
+    return JSON.parse(sessionStorage.getItem(SESSION_CACHE_KEY) || "{}");
+  } catch { return {}; }
+}
+
+function setSessionCache(key: string, data: any) {
+  const cache = getSessionCache();
+  cache[key] = { data, timestamp: Date.now() };
+  sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(cache));
+}
+
 interface ApiPost {
   id: number;
   content: string;
@@ -51,6 +65,11 @@ export default function SubgridPage() {
       const list = await fetchSubgrids(name);
       const match = list.find((s) => s.name === name);
       if (!match) { setLoading(false); return; }
+      const cacheKey = `subgrid_${name}`;
+      const cached = getSessionCache()[cacheKey];
+      if (cached) {
+        setPosts(cached.data);
+      }
       const [detail, postsRes, modsList] = await Promise.all([
         fetchSubgrid(match.id),
         fetch(`/api/posts?subgrid_id=${match.id}&sort=new&limit=20`, {
@@ -61,7 +80,11 @@ export default function SubgridPage() {
       setSubgrid(detail);
       setSubscribed(detail.is_subscribed ?? false);
       setMods(modsList);
-      if (postsRes.ok) setPosts(await postsRes.json());
+      if (postsRes.ok) {
+        const postsData = await postsRes.json();
+        setPosts(postsData);
+        setSessionCache(cacheKey, postsData);
+      }
     } catch {
       setSubgrid(null);
     } finally {

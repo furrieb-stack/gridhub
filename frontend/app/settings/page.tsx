@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { getStoredUser, setStoredUser, mediaUrl, type User } from "@/lib/api";
 import Navbar from "@/components/Navbar";
 import MobileNav from "@/components/MobileNav";
+import ImageCropperModal from "@/components/ImageCropperModal";
 
 function SectionIcon({ id, active }: { id: string; active: boolean }) {
   const c = active ? "currentColor" : "rgba(255,255,255,0.4)";
@@ -43,10 +44,12 @@ export default function SettingsPage() {
   const [bio, setBio] = useState("");
   const [saving, setSaving] = useState(false);
   const [isPrivate, setIsPrivate] = useState(false);
+  const [privacyType, setPrivacyType] = useState("public");
   const [privacySettings, setPrivacySettings] = useState<Record<string, boolean>>({
     show_activity: true,
     allow_mentions: true,
     allow_dms: true,
+    show_nsfw: true,
     push_notifications: true,
     email_notifications: true,
   });
@@ -54,6 +57,13 @@ export default function SettingsPage() {
 
   const avatarInput = useRef<HTMLInputElement>(null);
   const bannerInput = useRef<HTMLInputElement>(null);
+
+  const [cropImage, setCropImage] = useState<string | null>(null);
+  const [cropType, setCropType] = useState<"avatar" | "banner" | null>(null);
+  const [pendingAvatar, setPendingAvatar] = useState<Blob | null>(null);
+  const [pendingBanner, setPendingBanner] = useState<Blob | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     document.title = "Settings | Gridhub";
@@ -64,6 +74,7 @@ export default function SettingsPage() {
       setDisplayName(stored.display_name || "");
       setBio(stored.bio || "");
       setIsPrivate(stored.is_private ?? false);
+      setPrivacyType((stored as any).privacy_type || "public");
       if (stored.privacy_settings) {
         try {
           setPrivacySettings((prev) => ({ ...prev, ...JSON.parse(stored.privacy_settings!) }));
@@ -74,21 +85,50 @@ export default function SettingsPage() {
 
   if (!user) return null;
 
+  const uploadSingle = async (blob: Blob, type: "avatar" | "banner"): Promise<string | null> => {
+    const formData = new FormData();
+    formData.append("file", blob, `${type}.jpg`);
+    try {
+      const res = await fetch(`/api/users/me/${type}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
+        body: formData,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data[`${type}_url`];
+      }
+    } catch {}
+    return null;
+  };
+
   const saveProfile = async () => {
     setSaving(true);
     try {
+      let avatarUrl: string | null | undefined;
+      let bannerUrl: string | null | undefined;
+
+      if (pendingAvatar) avatarUrl = await uploadSingle(pendingAvatar, "avatar");
+      if (pendingBanner) bannerUrl = await uploadSingle(pendingBanner, "banner");
+
+      const body: Record<string, unknown> = { display_name: displayName, bio };
+      if (avatarUrl) body.avatar_url = avatarUrl;
+      if (bannerUrl) body.banner_url = bannerUrl;
+
       const res = await fetch("/api/users/me", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("access_token")}`,
         },
-        body: JSON.stringify({ display_name: displayName, bio }),
+        body: JSON.stringify(body),
       });
       if (res.ok) {
         const updated = await res.json();
         setStoredUser(updated);
         setUser(updated);
+        setPendingAvatar(null);
+        setPendingBanner(null);
         addToast("Profile saved successfully", "success");
       } else {
         addToast("Failed to save profile", "error");
@@ -110,6 +150,7 @@ export default function SettingsPage() {
         },
         body: JSON.stringify({
           is_private: isPrivate,
+          privacy_type: privacyType,
           privacy_settings: JSON.stringify(privacySettings),
         }),
       });
@@ -127,29 +168,29 @@ export default function SettingsPage() {
     setSaving(false);
   };
 
-  const uploadFile = async (e: React.ChangeEvent<HTMLInputElement>, type: "avatar" | "banner") => {
+  const handleFilePick = (e: React.ChangeEvent<HTMLInputElement>, type: "avatar" | "banner") => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const formData = new FormData();
-    formData.append("file", file);
-    try {
-      const res = await fetch(`/api/users/me/${type}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
-        body: formData,
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const updated = { ...user, [`${type}_url`]: data[`${type}_url`] };
-        setStoredUser(updated);
-        setUser(updated);
-        addToast(`${type === 'avatar' ? 'Avatar' : 'Banner'} updated successfully`, "success");
-      } else {
-        addToast(`Failed to update ${type}`, "error");
-      }
-    } catch (err) {
-      addToast("Network error", "error");
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCropImage(reader.result as string);
+      setCropType(type);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const handleCropped = (blob: Blob) => {
+    if (!cropType) return;
+    if (cropType === "avatar") {
+      setPendingAvatar(blob);
+      setUser((prev) => prev ? { ...prev, avatar_url: URL.createObjectURL(blob) } : prev);
+    } else {
+      setPendingBanner(blob);
+      setUser((prev) => prev ? { ...prev, banner_url: URL.createObjectURL(blob) } : prev);
     }
+    setCropImage(null);
+    setCropType(null);
   };
 
   const requestVerification = async () => {
@@ -170,7 +211,7 @@ export default function SettingsPage() {
   };
 
   const deleteAccount = async () => {
-    if (!confirm("Are you sure? This cannot be undone!")) return;
+    setDeleting(true);
     try {
       const res = await fetch("/api/users/me", {
         method: "DELETE",
@@ -180,9 +221,14 @@ export default function SettingsPage() {
         localStorage.removeItem("access_token");
         localStorage.removeItem("user");
         router.replace("/login");
+      } else {
+        addToast("Failed to delete account", "error");
       }
     } catch (err) {
-      console.error(err);
+      addToast("Network error", "error");
+    } finally {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -264,8 +310,8 @@ export default function SettingsPage() {
                       </div>
                     </div>
                     
-                    <input type="file" hidden ref={avatarInput} onChange={(e) => uploadFile(e, "avatar")} accept="image/*" />
-                    <input type="file" hidden ref={bannerInput} onChange={(e) => uploadFile(e, "banner")} accept="image/*" />
+                    <input type="file" hidden ref={avatarInput} onChange={(e) => handleFilePick(e, "avatar")} accept="image/*" />
+                    <input type="file" hidden ref={bannerInput} onChange={(e) => handleFilePick(e, "banner")} accept="image/*" />
                   </div>
 
                   {/* Form Inputs */}
@@ -295,9 +341,13 @@ export default function SettingsPage() {
                         value={bio}
                         onChange={(e) => setBio(e.target.value)}
                         rows={4}
+                        maxLength={500}
                         placeholder="Tell us about yourself"
                         className="w-full px-4 py-3 rounded-[14px] bg-white/[0.04] border border-white/[0.08] text-white text-[15px] outline-none resize-none focus:bg-white/[0.06] focus:border-[#FFD190]/60 focus:ring-1 focus:ring-[#FFD190]/30 transition-all placeholder:text-white/20"
                       />
+                      <div className="flex justify-end mt-1">
+                        <span className="text-[11px] text-white/30 font-medium">{bio.length}/500</span>
+                      </div>
                     </div>
 
                     <button 
@@ -313,12 +363,36 @@ export default function SettingsPage() {
 
               {activeSection === "privacy" && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="bg-white/[0.02] border border-white/[0.06] rounded-[24px] p-4">
+                    <label className="text-white/60 text-[13px] font-semibold uppercase tracking-wide ml-1 block mb-3">Profile Visibility</label>
+                    <div className="flex gap-2">
+                      {[
+                        { value: "public", label: "Public", desc: "Everyone can see your posts" },
+                        { value: "followers_only", label: "Followers", desc: "Only followers can see your posts" },
+                        { value: "closed", label: "Closed", desc: "Limited profile visibility" },
+                      ].map((opt) => (
+                        <button
+                          key={opt.value}
+                          onClick={() => setPrivacyType(opt.value)}
+                          className={`flex-1 p-3 rounded-[12px] text-left transition-all ${
+                            privacyType === opt.value
+                              ? "bg-[#FFD190]/10 border border-[#FFD190]/30"
+                              : "bg-white/[0.02] border border-white/[0.06] hover:bg-white/[0.04]"
+                          }`}
+                        >
+                          <p className={`text-[14px] font-bold ${privacyType === opt.value ? "text-[#FFD190]" : "text-white/70"}`}>{opt.label}</p>
+                          <p className="text-[11px] text-white/40 mt-0.5">{opt.desc}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <div className="bg-white/[0.02] border border-white/[0.06] rounded-[24px] p-2">
                     {[
                       { key: "is_private", label: "Private account", desc: "Only followers can see your posts" },
                       { key: "show_activity", label: "Show activity status", desc: "Let others see when you're active" },
                       { key: "allow_mentions", label: "Allow mentions", desc: "Control who can mention you" },
                       { key: "allow_dms", label: "Allow direct messages", desc: "Receive messages from anyone" },
+                      { key: "show_nsfw", label: "Show NSFW content", desc: "Display 18+ communities and posts in your feed" },
                     ].map((item, i, arr) => (
                       <div key={item.key} className={`flex items-center justify-between p-4 ${i !== arr.length - 1 ? "border-b border-white/[0.04]" : ""}`}>
                         <div className="pr-4">
@@ -443,7 +517,7 @@ export default function SettingsPage() {
                         Permanently delete your account and all associated data. This action cannot be undone.
                       </p>
                       <button 
-                        onClick={deleteAccount} 
+                        onClick={() => setShowDeleteConfirm(true)} 
                         className="px-6 py-3 rounded-[14px] bg-red-500/10 border border-red-500/30 text-red-400 text-[14px] font-bold hover:bg-red-500/20 transition-all active:scale-[0.98]"
                       >
                         Delete Account
@@ -461,6 +535,47 @@ export default function SettingsPage() {
       <div className="block md:hidden">
         <MobileNav />
       </div>
+
+      {cropImage && cropType && (
+        <ImageCropperModal
+          image={cropImage}
+          aspect={cropType === "avatar" ? 1 : 3}
+          circularCrop={cropType === "avatar"}
+          onCrop={handleCropped}
+          onClose={() => { setCropImage(null); setCropType(null); }}
+        />
+      )}
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => !deleting && setShowDeleteConfirm(false)}>
+          <div className="bg-[#1a1a1a] rounded-[24px] w-full max-w-[400px] mx-4 overflow-hidden border border-white/[0.08] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-5 border-b border-white/[0.06]">
+              <h2 className="text-white text-[18px] font-bold">Delete Account</h2>
+            </div>
+            <div className="px-6 py-5">
+              <p className="text-white/70 text-[15px] leading-relaxed">
+                Are you sure you want to permanently delete your account? This action cannot be undone. All your posts, comments, and data will be removed.
+              </p>
+            </div>
+            <div className="px-6 py-4 border-t border-white/[0.06] flex justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleting}
+                className="px-5 py-2.5 rounded-[12px] text-white/60 hover:text-white hover:bg-white/5 transition-colors text-[14px] font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={deleteAccount}
+                disabled={deleting}
+                className="px-5 py-2.5 rounded-[12px] bg-red-500 text-white text-[14px] font-bold hover:bg-red-600 transition-all disabled:opacity-50"
+              >
+                {deleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

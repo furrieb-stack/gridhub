@@ -13,6 +13,26 @@ from app.schemas.auth import UserResponse
 from app.schemas.post import PostResponse
 
 
+def build_author_dict(author) -> Optional[dict]:
+    if not author:
+        return None
+    return {
+        "id": author.id,
+        "username": author.username,
+        "display_name": author.display_name,
+        "avatar_url": author.avatar_url,
+        "banner_url": author.banner_url,
+        "bio": author.bio,
+        "is_verified": author.is_verified,
+        "is_admin": author.is_admin,
+        "is_mod": author.is_mod,
+        "is_banned": author.is_banned,
+        "is_private": author.is_private if hasattr(author, 'is_private') else False,
+        "privacy_settings": author.privacy_settings,
+        "created_at": author.created_at,
+    }
+
+
 def sanitize_content(content: str) -> str:
     return html.escape(content)
 

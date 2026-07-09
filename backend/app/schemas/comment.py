@@ -25,6 +25,9 @@ class CommentResponse(BaseModel):
     upvotes: int
     downvotes: int
     score: int
+    likes: int = 0
+    is_pinned: bool = False
+    is_liked: bool = False
     created_at: datetime
     updated_at: Optional[datetime]
     deleted_at: Optional[datetime]

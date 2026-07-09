@@ -12,6 +12,9 @@ interface CommentData {
   created_at: string;
   author: { username: string; display_name: string | null; avatar_url: string | null; is_verified: boolean } | null;
   replies?: CommentData[];
+  likes?: number;
+  is_liked?: boolean;
+  is_pinned?: boolean;
 }
 
 interface CommentThreadProps {
@@ -27,8 +30,35 @@ export default function CommentThread({ comment, user, postId, token, onReplySuc
   const [replyText, setReplyText] = useState(`@${comment.author?.username} `);
   const [sending, setSending] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [liked, setLiked] = useState((comment as any).is_liked ?? false);
+  const [likes, setLikes] = useState((comment as any).likes ?? 0);
 
   const hasReplies = comment.replies && comment.replies.length > 0;
+
+  async function handleLike() {
+    if (!token) return;
+    const prev = liked;
+    const prevCount = likes;
+    setLiked(!liked);
+    setLikes(liked ? likes - 1 : likes + 1);
+    try {
+      const res = await fetch(`/api/comments/${comment.id}/like`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        setLiked(prev);
+        setLikes(prevCount);
+      } else {
+        const data = await res.json();
+        setLiked(data.liked);
+        setLikes(data.likes);
+      }
+    } catch {
+      setLiked(prev);
+      setLikes(prevCount);
+    }
+  }
 
   async function handleReply() {
     if (!replyText.trim() || sending || !token) return;
@@ -80,6 +110,18 @@ export default function CommentThread({ comment, user, postId, token, onReplySuc
         </p>
 
         <div className="flex items-center gap-4 mt-1.5">
+          <button
+            onClick={handleLike}
+            disabled={!token}
+            className={`flex items-center gap-1 text-[12px] font-medium transition-colors disabled:opacity-40 ${
+              liked ? "text-[#FFD190]" : "text-white/40 hover:text-white/70"
+            }`}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill={liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" className="shrink-0">
+              <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
+            </svg>
+            <span>{likes}</span>
+          </button>
           {user && (
             <button
               onClick={() => {

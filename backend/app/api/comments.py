@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 
-from database import get_db, User, Post, Comment, Vote
+from database import get_db, User, Post, Comment, Vote, CommentLike, SubgridModerator, Subgrid
 from app.core.deps import limiter, get_current_active_user
 from app.core.redis import invalidate_post_cache
 from app.schemas.comment import CommentCreate, CommentUpdate, CommentResponse
@@ -99,16 +99,35 @@ async def get_comments(
         .all()
     )
 
+    liked_comment_ids = {
+        l.comment_id
+        for l in db.query(CommentLike).filter(CommentLike.user_id == current_user.id).all()
+    }
+
     def build_comment_tree(comment):
         replies = (
             db.query(Comment)
             .filter(Comment.parent_id == comment.id, Comment.deleted_at == None)
-            .order_by(Comment.score.desc())
+            .order_by(Comment.is_pinned.desc(), Comment.score.desc())
             .all()
         )
         result = CommentResponse.model_validate(comment)
+        result.is_liked = comment.id in liked_comment_ids
         result.replies = [build_comment_tree(reply) for reply in replies]
         return result
+
+    comments = (
+        db.query(Comment)
+        .filter(
+            Comment.post_id == post_id,
+            Comment.parent_id == None,
+            Comment.deleted_at == None,
+        )
+        .order_by(Comment.is_pinned.desc(), Comment.score.desc())
+        .offset(skip)
+        .limit(min(limit, 100))
+        .all()
+    )
 
     return [build_comment_tree(c) for c in comments]
 
@@ -223,3 +242,72 @@ async def downvote_comment(
     db.commit()
     update_karma(db, comment.user_id)
     return {"score": comment.score}
+
+
+@router.post("/{comment_id}/like")
+async def like_comment(
+    comment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    comment = db.query(Comment).filter(Comment.id == comment_id).first()
+    if not comment:
+        raise HTTPException(404, "Comment not found")
+
+    existing = (
+        db.query(CommentLike)
+        .filter(CommentLike.user_id == current_user.id, CommentLike.comment_id == comment_id)
+        .first()
+    )
+
+    if existing:
+        db.delete(existing)
+        comment.likes -= 1
+        db.commit()
+        return {"liked": False, "likes": comment.likes}
+    else:
+        new_like = CommentLike(user_id=current_user.id, comment_id=comment_id)
+        db.add(new_like)
+        comment.likes += 1
+        db.commit()
+        return {"liked": True, "likes": comment.likes}
+
+
+@router.post("/{comment_id}/pin")
+async def pin_comment(
+    comment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    comment = db.query(Comment).filter(Comment.id == comment_id).first()
+    if not comment:
+        raise HTTPException(404, "Comment not found")
+
+    post = db.query(Post).filter(Post.id == comment.post_id).first()
+    if not post:
+        raise HTTPException(404, "Post not found")
+
+    can_pin = False
+    if post.subgrid_id:
+        subgrid = db.query(Subgrid).filter(Subgrid.id == post.subgrid_id).first()
+        if subgrid and subgrid.owner_id == current_user.id:
+            can_pin = True
+        else:
+            mod = (
+                db.query(SubgridModerator)
+                .filter(SubgridModerator.subgrid_id == post.subgrid_id, SubgridModerator.user_id == current_user.id)
+                .first()
+            )
+            if mod:
+                can_pin = True
+    if post.user_id == current_user.id:
+        can_pin = True
+    if current_user.is_admin:
+        can_pin = True
+
+    if not can_pin:
+        raise HTTPException(403, "You don't have permission to pin this comment")
+
+    comment.is_pinned = not comment.is_pinned
+    db.commit()
+    return {"pinned": comment.is_pinned}

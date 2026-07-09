@@ -6,6 +6,7 @@ import { getStoredUser, mediaUrl, type User } from "@/lib/api";
 import { useToast } from "@/components/ToastProvider";
 import Navbar from "@/components/Navbar";
 import MobileNav from "@/components/MobileNav";
+import ImageCropperModal from "@/components/ImageCropperModal";
 
 export default function SubgridSettings({ params }: { params: Promise<{ name: string }> }) {
   const { name } = use(params);
@@ -22,8 +23,16 @@ export default function SubgridSettings({ params }: { params: Promise<{ name: st
   const [description, setDescription] = useState("");
   const [isNsfw, setIsNsfw] = useState(false);
 
+  const [mods, setMods] = useState<User[]>([]);
+  const [modInput, setModInput] = useState("");
+  const [modError, setModError] = useState("");
+
   const avatarInput = useRef<HTMLInputElement>(null);
   const bannerInput = useRef<HTMLInputElement>(null);
+  const [cropImage, setCropImage] = useState<string | null>(null);
+  const [cropType, setCropType] = useState<"avatar" | "banner" | null>(null);
+  const [pendingAvatar, setPendingAvatar] = useState<Blob | null>(null);
+  const [pendingBanner, setPendingBanner] = useState<Blob | null>(null);
 
   useEffect(() => {
     const stored = getStoredUser();
@@ -47,8 +56,9 @@ export default function SubgridSettings({ params }: { params: Promise<{ name: st
 
           const modRes = await fetch(`/api/subgrids/${data.id}/moderators`);
           if (modRes.ok) {
-            const mods = await modRes.json();
-            setIsMod(mods.some((m: any) => m.id === user?.id));
+            const modsData = await modRes.json();
+            setMods(modsData);
+            setIsMod(modsData.some((m: any) => m.id === user?.id));
           }
         } else {
           setFetchError("Community not found");
@@ -66,6 +76,33 @@ export default function SubgridSettings({ params }: { params: Promise<{ name: st
     if (!subgrid) return;
     setSaving(true);
     try {
+      if (pendingAvatar) {
+        const form = new FormData();
+        form.append("file", pendingAvatar, "avatar.jpg");
+        const uploadRes = await fetch(`/api/subgrids/${subgrid.id}/avatar`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
+          body: form,
+        });
+        if (uploadRes.ok) {
+          const data = await uploadRes.json();
+          subgrid.avatar_url = data.avatar_url;
+        }
+      }
+      if (pendingBanner) {
+        const form = new FormData();
+        form.append("file", pendingBanner, "banner.jpg");
+        const uploadRes = await fetch(`/api/subgrids/${subgrid.id}/banner`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
+          body: form,
+        });
+        if (uploadRes.ok) {
+          const data = await uploadRes.json();
+          subgrid.banner_url = data.banner_url;
+        }
+      }
+
       const res = await fetch(`/api/subgrids/${subgrid.id}`, {
         method: "PUT",
         headers: {
@@ -82,6 +119,8 @@ export default function SubgridSettings({ params }: { params: Promise<{ name: st
       if (res.ok) {
         const data = await res.json();
         setSubgrid(data);
+        setPendingAvatar(null);
+        setPendingBanner(null);
         addToast("Settings saved successfully", "success");
       } else {
         addToast("Failed to save settings", "error");
@@ -92,27 +131,71 @@ export default function SubgridSettings({ params }: { params: Promise<{ name: st
     setSaving(false);
   };
 
-  const handleUploadMedia = async (e: React.ChangeEvent<HTMLInputElement>, type: "avatar" | "banner") => {
-    if (!e.target.files || !e.target.files[0] || !subgrid) return;
-    const file = e.target.files[0];
-    const formData = new FormData();
-    formData.append("file", file);
+  const handleFilePick = (e: React.ChangeEvent<HTMLInputElement>, type: "avatar" | "banner") => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCropImage(reader.result as string);
+      setCropType(type);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
 
+  const handleCropped = (blob: Blob) => {
+    if (!cropType) return;
+    if (cropType === "avatar") {
+      setPendingAvatar(blob);
+      setSubgrid((prev: any) => prev ? { ...prev, avatar_url: URL.createObjectURL(blob) } : prev);
+    } else {
+      setPendingBanner(blob);
+      setSubgrid((prev: any) => prev ? { ...prev, banner_url: URL.createObjectURL(blob) } : prev);
+    }
+    setCropImage(null);
+    setCropType(null);
+  };
+
+  const handleAddMod = async () => {
+    if (!subgrid || !modInput.trim()) return;
+    setModError("");
     try {
-      const res = await fetch(`/api/subgrids/${subgrid.id}/${type}`, {
+      const searchRes = await fetch(`/api/users/by-username/${modInput.trim()}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
+      });
+      if (!searchRes.ok) { setModError("User not found"); return; }
+      const found: User = await searchRes.json();
+      const modRes = await fetch(`/api/subgrids/${subgrid.id}/moderators?user_id=${found.id}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
-        body: formData,
       });
-
-      if (res.ok) {
-        const data = await res.json();
-        setSubgrid({ ...subgrid, [`${type}_url`]: data[`${type}_url`] });
-        addToast(`${type === 'avatar' ? 'Avatar' : 'Banner'} updated successfully`, "success");
+      if (modRes.ok) {
+        setMods((prev) => [...prev, found]);
+        setModInput("");
+        addToast("Moderator added", "success");
       } else {
-        addToast(`Failed to update ${type}`, "error");
+        const err = await modRes.json().catch(() => ({}));
+        setModError(err.detail || "Failed to add moderator");
       }
-    } catch (err) {
+    } catch {
+      setModError("Network error");
+    }
+  };
+
+  const handleRemoveMod = async (userId: number) => {
+    if (!subgrid) return;
+    try {
+      const res = await fetch(`/api/subgrids/${subgrid.id}/moderators/${userId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
+      });
+      if (res.ok) {
+        setMods((prev) => prev.filter((m) => m.id !== userId));
+        addToast("Moderator removed", "success");
+      } else {
+        addToast("Failed to remove moderator", "error");
+      }
+    } catch {
       addToast("Network error", "error");
     }
   };
@@ -226,8 +309,8 @@ export default function SubgridSettings({ params }: { params: Promise<{ name: st
                 </div>
               </div>
               
-              <input type="file" hidden ref={avatarInput} onChange={(e) => handleUploadMedia(e, "avatar")} accept="image/*" />
-              <input type="file" hidden ref={bannerInput} onChange={(e) => handleUploadMedia(e, "banner")} accept="image/*" />
+              <input type="file" hidden ref={avatarInput} onChange={(e) => handleFilePick(e, "avatar")} accept="image/*" />
+              <input type="file" hidden ref={bannerInput} onChange={(e) => handleFilePick(e, "banner")} accept="image/*" />
             </div>
 
             {/* Inputs Block */}
@@ -295,6 +378,57 @@ export default function SubgridSettings({ params }: { params: Promise<{ name: st
               </div>
             </div>
 
+            {/* Moderator Management */}
+            {subgrid && user && subgrid.owner_id === user.id && (
+              <div className="rounded-[24px] border border-white/[0.04] p-5" style={{ backgroundColor: "rgba(255,255,255,0.03)" }}>
+                <h3 className="text-white text-[16px] font-bold mb-4">Moderators</h3>
+                <div className="flex flex-col gap-2 mb-4">
+                  {mods.map((m) => (
+                    <div key={m.id} className="flex items-center justify-between py-2">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+                          <span className="text-white/40 text-[12px] font-bold">
+                            {(m.display_name ?? m.username).charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="text-white text-[14px] font-medium">{m.display_name ?? m.username}</p>
+                          <p className="text-white/30 text-[12px]">@{m.username}</p>
+                        </div>
+                      </div>
+                      {m.id !== subgrid.owner_id && (
+                        <button
+                          onClick={() => handleRemoveMod(m.id)}
+                          className="text-red-400 text-[12px] font-medium hover:text-red-300 transition-colors"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Add moderator by username"
+                    value={modInput}
+                    onChange={(e) => { setModInput(e.target.value); setModError(""); }}
+                    onKeyDown={(e) => e.key === "Enter" && handleAddMod()}
+                    className="flex-1 h-10 px-4 rounded-[12px] border border-white/[0.06] text-white text-[14px] outline-none placeholder:text-white/20"
+                    style={{ backgroundColor: "rgba(255,255,255,0.04)" }}
+                  />
+                  <button
+                    onClick={handleAddMod}
+                    disabled={!modInput.trim()}
+                    className="px-4 h-10 rounded-[12px] bg-[#FFD190] text-[#12110f] text-[13px] font-bold hover:bg-[#ffe3bc] transition-all disabled:opacity-40"
+                  >
+                    Add
+                  </button>
+                </div>
+                {modError && <p className="text-red-400 text-[12px] mt-2">{modError}</p>}
+              </div>
+            )}
+
             {/* Submit Button */}
             <div className="pt-4 border-t border-white/[0.06]">
               <button
@@ -315,6 +449,16 @@ export default function SubgridSettings({ params }: { params: Promise<{ name: st
       </main>
       
       <div className="block md:hidden"><MobileNav /></div>
+
+      {cropImage && cropType && (
+        <ImageCropperModal
+          image={cropImage}
+          aspect={cropType === "avatar" ? 1 : 3}
+          circularCrop={cropType === "avatar"}
+          onCrop={handleCropped}
+          onClose={() => { setCropImage(null); setCropType(null); }}
+        />
+      )}
     </div>
   );
 }

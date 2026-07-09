@@ -1,14 +1,30 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { getStoredUser, setStoredUser, fetchProfile, mediaUrl, type User, type UserProfile } from "@/lib/api";
 import Navbar from "@/components/Navbar";
 import MobileNav from "@/components/MobileNav";
 import Post from "@/components/Post";
 import FollowButton from "@/components/FollowButton";
 import Avatar from "@/components/Avatar";
+import Timestamp from "@/components/Timestamp";
 import { useToast } from "@/components/ToastProvider";
+
+const SESSION_CACHE_KEY = "profile_session_cache";
+
+function getSessionCache(): Record<string, { data: any; timestamp: number }> {
+  try {
+    return JSON.parse(sessionStorage.getItem(SESSION_CACHE_KEY) || "{}");
+  } catch { return {}; }
+}
+
+function setSessionCache(key: string, data: any) {
+  const cache = getSessionCache();
+  cache[key] = { data, timestamp: Date.now() };
+  sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(cache));
+}
 
 interface ApiPost {
   id: number;
@@ -33,6 +49,9 @@ export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [posts, setPosts] = useState<ApiPost[]>([]);
+  const [comments, setComments] = useState<any[]>([]);
+  const [savedPosts, setSavedPosts] = useState<ApiPost[]>([]);
+  const [loadingTab, setLoadingTab] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("Posts");
   const [bannerError, setBannerError] = useState(false);
@@ -103,6 +122,14 @@ export default function ProfilePage() {
       try {
         const profileData = await fetchProfile(username);
         setProfile(profileData);
+        document.title = `${profileData.display_name ?? profileData.username} (@${profileData.username}) | Gridhub`;
+
+        const cacheKey = `profile_${username}`;
+        const cached = getSessionCache()[cacheKey];
+        if (cached) {
+          setPosts(cached.data);
+        }
+
         const token = localStorage.getItem("access_token");
         const postsRes = await fetch(`/api/posts?user_id=${profileData.id}&limit=20`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -110,6 +137,7 @@ export default function ProfilePage() {
         if (postsRes.ok) {
           const postsData: ApiPost[] = await postsRes.json();
           setPosts(postsData);
+          setSessionCache(cacheKey, postsData);
         }
       } catch {
         setProfile(null);
@@ -119,6 +147,30 @@ export default function ProfilePage() {
     }
     if (user) load();
   }, [username, user]);
+
+  useEffect(() => {
+    if (!user || !profile || !profile.id) return;
+    const tok = localStorage.getItem("access_token");
+    if (!tok) return;
+    async function loadTab() {
+      setLoadingTab(true);
+      try {
+        if (activeTab === "Comments") {
+          const res = await fetch(`/api/comments?user_id=${profile!.id}&limit=20`, {
+            headers: { Authorization: `Bearer ${tok}` },
+          });
+          if (res.ok) setComments(await res.json());
+        } else if (activeTab === "Saved") {
+          const res = await fetch(`/api/posts/saved?limit=20`, {
+            headers: { Authorization: `Bearer ${tok}` },
+          });
+          if (res.ok) setSavedPosts(await res.json());
+        }
+      } catch {}
+      setLoadingTab(false);
+    }
+    loadTab();
+  }, [activeTab, profile, user]);
 
   if (!user) return null;
 
@@ -307,6 +359,7 @@ export default function ProfilePage() {
                           upvotes={p.upvotes}
                           user_vote={p.user_vote ?? 0}
                           comments_count={p.comment_count}
+                          compact
                         />
                       ))}
                     </div>
@@ -314,15 +367,63 @@ export default function ProfilePage() {
                 )}
 
                 {activeTab === "Comments" && (
-                  <div className="flex flex-col items-center justify-center py-20 gap-3 text-white/30 text-[15px]">
-                    <p>Comments coming soon</p>
-                  </div>
+                  loadingTab ? (
+                    <div className="flex justify-center py-20">
+                      <div className="w-8 h-8 rounded-full border-2 border-[#FFD190] border-t-transparent animate-spin" />
+                    </div>
+                  ) : comments.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-20 gap-3 text-white/30 text-[15px]">
+                      <p>No comments yet</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-3">
+                      {comments.map((c: any) => (
+                        <div key={c.id} className="p-4 rounded-[16px] border border-white/[0.04]" style={{ backgroundColor: "rgba(255,255,255,0.02)" }}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <Link href={`/post/${c.post_id}`} className="text-[#FFD190] text-[13px] font-bold hover:underline">
+                              View post
+                            </Link>
+                            <Timestamp date={c.created_at} />
+                          </div>
+                          <p className="text-white/70 text-[14px] leading-relaxed">{c.content}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )
                 )}
 
                 {activeTab === "Saved" && (
-                  <div className="flex flex-col items-center justify-center py-20 gap-3 text-white/30 text-[15px]">
-                    <p>Saved posts coming soon</p>
-                  </div>
+                  loadingTab ? (
+                    <div className="flex justify-center py-20">
+                      <div className="w-8 h-8 rounded-full border-2 border-[#FFD190] border-t-transparent animate-spin" />
+                    </div>
+                  ) : savedPosts.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-20 gap-3 text-white/30 text-[15px]">
+                      <p>No saved posts</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-4">
+                      {savedPosts.map((p: any, i) => (
+                        <Post
+                          key={p.id + "-" + i}
+                          id={p.id}
+                          author={{
+                            username: p.author?.username ?? profile.username,
+                            display_name: p.author?.display_name ?? null,
+                            avatar_url: p.author?.avatar_url ?? null,
+                            is_verified: p.author?.is_verified ?? false,
+                          }}
+                          content={p.content}
+                          media={p.media?.map((m: any) => ({ url: m.url })) ?? []}
+                          created_at={p.created_at}
+                          upvotes={p.upvotes}
+                          user_vote={p.user_vote ?? 0}
+                          comments_count={p.comment_count}
+                          compact
+                        />
+                      ))}
+                    </div>
+                  )
                 )}
               </div>
             </div>

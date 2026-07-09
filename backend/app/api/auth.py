@@ -23,6 +23,15 @@ from app.schemas.auth import (
 )
 from app.utils.helpers import check_ip_ban
 
+ALLOWED_EMAIL_DOMAINS = {
+    "gmail.com", "yandex.ru", "ya.ru", "mail.yandex.ru",
+    "proton.me", "protonmail.com", "pm.me",
+    "outlook.com", "hotmail.com", "live.com",
+    "icloud.com", "me.com",
+    "yahoo.com", "yahoo.co.uk",
+    "aol.com", "mail.com",
+}
+
 router = APIRouter(prefix="/api", tags=["auth"])
 
 
@@ -34,6 +43,13 @@ async def register(request: Request, user_data: UserRegister, db: Session = Depe
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many registration attempts. Please try again later.",
+        )
+
+    domain = user_data.email.lower().split("@")[-1]
+    if domain not in ALLOWED_EMAIL_DOMAINS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only email providers like Gmail, Yandex, Proton, Outlook, iCloud, Yahoo are allowed",
         )
 
     existing_user = (

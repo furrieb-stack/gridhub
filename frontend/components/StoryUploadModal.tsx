@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { uploadStory } from "@/lib/api";
+import ImageCropperModal from "@/components/ImageCropperModal";
 
 interface StoryUploadModalProps {
   onClose: () => void;
@@ -13,6 +14,8 @@ export default function StoryUploadModal({ onClose, onStoryCreated }: StoryUploa
   const [error, setError] = useState("");
   const [visible, setVisible] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
+  const [cropImage, setCropImage] = useState<string | null>(null);
+  const [rawFile, setRawFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -27,17 +30,29 @@ export default function StoryUploadModal({ onClose, onStoryCreated }: StoryUploa
     }, 300);
   }
 
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFilePick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCropImage(reader.result as string);
+      setRawFile(file);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
 
-    const objectUrl = URL.createObjectURL(file);
+  async function handleCropped(blob: Blob) {
+    setCropImage(null);
+    setRawFile(null);
+    const objectUrl = URL.createObjectURL(blob);
     setPreview(objectUrl);
     setUploading(true);
     setError("");
 
     try {
-      await uploadStory(file);
+      const storyFile = new File([blob], "story.jpg", { type: blob.type || "image/jpeg" });
+      await uploadStory(storyFile);
       onStoryCreated();
       handleClose();
     } catch (err: any) {
@@ -98,7 +113,7 @@ export default function StoryUploadModal({ onClose, onStoryCreated }: StoryUploa
           )}
 
           <div>
-            <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFile} />
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFilePick} />
             <button
               onClick={pickFile}
               disabled={uploading}
@@ -123,7 +138,7 @@ export default function StoryUploadModal({ onClose, onStoryCreated }: StoryUploa
                   </div>
                   <div className="text-center">
                     <p className="text-white/80 text-[15px] font-semibold">Tap to browse</p>
-                    <p className="text-white/40 text-[13px] mt-1">Photo or Video</p>
+                    <p className="text-white/40 text-[13px] mt-1">Photo</p>
                   </div>
                 </>
               )}
@@ -131,6 +146,15 @@ export default function StoryUploadModal({ onClose, onStoryCreated }: StoryUploa
           </div>
         </div>
       </div>
+
+      {cropImage && (
+        <ImageCropperModal
+          image={cropImage}
+          aspect={9 / 16}
+          onCrop={handleCropped}
+          onClose={() => { setCropImage(null); setRawFile(null); }}
+        />
+      )}
     </div>
   );
 }

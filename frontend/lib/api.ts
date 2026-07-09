@@ -1,10 +1,9 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "/api";
-const MEDIA_BASE = API_BASE.replace("/api", "");
 
 export function mediaUrl(url: string | null | undefined): string {
   if (!url) return "";
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
-  return `${MEDIA_BASE}${url}`;
+  return url;
 }
 
 export interface User {

@@ -1,3 +1,4 @@
+import json
 import re
 import logging
 
@@ -5,7 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from database import get_db, User, Post, Comment, Subgrid, SubgridSubscription, SubgridModerator, PostMedia, Flair, PostView
+from database import get_db, User, Post, Comment, Subgrid, SubgridSubscription, SubgridModerator, PostMedia, Flair, PostView, Follow
 from app.core.deps import get_current_active_user
 from app.core.redis import cache_feed, get_cached_feed
 from app.schemas.post import PostResponse
@@ -39,20 +40,42 @@ async def get_feed(
     if not subgrid_ids:
         return []
 
-    posts = (
-        db.query(Post)
-        .join(User)
-        .filter(
-            Post.subgrid_id.in_(subgrid_ids),
-            Post.score >= -10,
-            User.is_active == True,
-            User.is_banned == False,
-        )
-        .order_by(Post.created_at.desc())
-        .offset(skip)
-        .limit(min(limit, 100))
+    followed_ids = set(
+        f[0] for f in db.query(Follow.followed_id)
+        .filter(Follow.follower_id == current_user.id)
         .all()
     )
+
+    privacy = {}
+    if current_user.privacy_settings:
+        try:
+            privacy = json.loads(current_user.privacy_settings)
+        except json.JSONDecodeError:
+            pass
+
+    query = db.query(Post).join(User).filter(
+        Post.subgrid_id.in_(subgrid_ids),
+        Post.score >= -10,
+        User.is_active == True,
+        User.is_banned == False,
+        (User.privacy_type == "public") |
+        ((User.privacy_type == "followers_only") & (User.id.in_(followed_ids))) |
+        (User.id == current_user.id),
+    )
+
+    if not privacy.get("show_nsfw", True):
+        nsfw_subgrid_ids = (
+            db.query(Subgrid.id)
+            .filter(Subgrid.is_nsfw == True)
+            .all()
+        )
+        nsfw_subgrid_ids = [s[0] for s in nsfw_subgrid_ids]
+        if nsfw_subgrid_ids:
+            query = query.filter(
+                (Post.subgrid_id == None) | (~Post.subgrid_id.in_(nsfw_subgrid_ids))
+            )
+
+    posts = query.order_by(Post.created_at.desc()).offset(skip).limit(min(limit, 100)).all()
 
     if not posts:
         return []

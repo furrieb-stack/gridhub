@@ -1,12 +1,15 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { getStoredUser } from "@/lib/api";
 
 interface NewPostModalProps {
   onClose: () => void;
   subgridId?: number;
 }
+
+const MAX_CONTENT_LENGTH = 10000;
 
 export default function NewPostModal({ onClose, subgridId }: NewPostModalProps) {
   const [content, setContent] = useState("");
@@ -20,6 +23,7 @@ export default function NewPostModal({ onClose, subgridId }: NewPostModalProps) 
   const [showSubgridPicker, setShowSubgridPicker] = useState(false);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
 
   const [dragY, setDragY] = useState(0);
   const isDragging = useRef(false);
@@ -108,58 +112,62 @@ export default function NewPostModal({ onClose, subgridId }: NewPostModalProps) 
     setPreviews(newFiles.map((f) => URL.createObjectURL(f)));
   }
 
-  async function handlePost() {
+  function handlePost() {
     if ((!content.trim() && files.length === 0) || posting) return;
-    setPosting(true);
-    setError("");
 
     const token = localStorage.getItem("access_token");
-    if (!token) { setError("Not logged in"); setPosting(false); return; }
+    if (!token) { setError("Not logged in"); return; }
 
+    setPosting(true);
     const API = "/api";
+    const postContent = content.trim();
+    const targetSubgrid = selectedSubgridId ?? subgridId;
 
-    try {
-      let mediaIds: number[] = [];
+    handleClose();
+    localStorage.removeItem("post_draft");
 
-      if (files.length > 0) {
-        for (const file of files) {
-          const form = new FormData();
-          form.append("file", file);
-          const resp = await fetch(`${API}/upload`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
-            body: form,
-          });
-          if (!resp.ok) throw new Error("Upload failed");
-          const data = await resp.json();
-          mediaIds.push(data.id);
+    (async () => {
+      try {
+        let mediaIds: number[] = [];
+
+        if (files.length > 0) {
+          for (const file of files) {
+            const form = new FormData();
+            form.append("file", file);
+            const resp = await fetch(`${API}/upload`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}` },
+              body: form,
+            });
+            if (!resp.ok) throw new Error("Upload failed");
+            const data = await resp.json();
+            mediaIds.push(data.id);
+          }
         }
+
+        const body: Record<string, unknown> = { content: postContent };
+        if (mediaIds.length > 0) body.media_ids = mediaIds;
+        if (targetSubgrid) body.subgrid_id = targetSubgrid;
+
+        const resp = await fetch(`${API}/posts`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify(body),
+        });
+
+        if (resp.ok) {
+          const post = await resp.json();
+          window.dispatchEvent(new CustomEvent("post-created", { detail: { post } }));
+          setPosting(false);
+        } else {
+          setPosting(false);
+          setError("Failed to create post");
+        }
+      } catch (err) {
+        setPosting(false);
+        console.error("Post error:", err);
       }
-
-      const body: Record<string, unknown> = { content: content.trim() };
-      if (mediaIds.length > 0) body.media_ids = mediaIds;
-      const targetSubgrid = selectedSubgridId ?? subgridId;
-      if (targetSubgrid) body.subgrid_id = targetSubgrid;
-
-      const resp = await fetch(`${API}/posts`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(body),
-      });
-
-      if (!resp.ok) {
-        const errData = await resp.json().catch(() => ({}));
-        throw new Error(errData.detail ?? "Failed to create post");
-      }
-
-      handleClose();
-      localStorage.removeItem("post_draft");
-      window.dispatchEvent(new CustomEvent("post-created"));
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setPosting(false);
-    }
+    })();
   }
 
   const canPost = (content.trim().length > 0 || files.length > 0) && !posting;
@@ -222,7 +230,11 @@ export default function NewPostModal({ onClose, subgridId }: NewPostModalProps) 
               <textarea
                 ref={textRef}
                 value={content}
-                onChange={(e) => setContent(e.target.value)}
+                onChange={(e) => {
+                  if (e.target.value.length <= MAX_CONTENT_LENGTH) {
+                    setContent(e.target.value);
+                  }
+                }}
                 placeholder="What's happening?"
                 className="w-full bg-transparent text-white text-[16px] md:text-[18px] outline-none resize-none placeholder:text-white/20 leading-relaxed min-h-[120px] flex-1"
                 style={{ fontFamily: "inherit" }}
@@ -313,18 +325,21 @@ export default function NewPostModal({ onClose, subgridId }: NewPostModalProps) 
                     <circle cx="18" cy="18" r="16" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="3" />
                     <circle 
                       cx="18" cy="18" r="16" fill="none" 
-                      stroke={content.length > 500 ? "#ef4444" : "#FFD190"} 
+                      stroke={content.length > MAX_CONTENT_LENGTH * 0.9 ? "#ef4444" : "#FFD190"} 
                       strokeWidth="3" 
                       strokeDasharray="100"
-                      strokeDashoffset={100 - (Math.min(content.length / 500, 1) * 100)}
+                      strokeDashoffset={100 - (Math.min(content.length / MAX_CONTENT_LENGTH, 1) * 100)}
                       className="transition-all duration-200 ease-out"
                     />
                   </svg>
                 </div>
-                <span className={`text-[12px] font-medium ${content.length > 500 ? "text-red-400" : "text-white/40"}`}>
-                  {content.length > 400 ? 500 - content.length : ""}
+                <span className={`text-[12px] font-medium min-w-[28px] text-right ${content.length > MAX_CONTENT_LENGTH * 0.9 ? "text-red-400" : "text-white/40"}`}>
+                  {content.length > MAX_CONTENT_LENGTH - 100 ? MAX_CONTENT_LENGTH - content.length : ""}
                 </span>
               </div>
+              <span className="text-[12px] text-white/30 font-medium">
+                {content.length}/{MAX_CONTENT_LENGTH}
+              </span>
             </div>
           </div>
         </div>

@@ -12,8 +12,8 @@ REFRESH_TOKEN_EXPIRE_DAYS = 7
 MAX_LOGIN_ATTEMPTS = 5
 LOGIN_WINDOW_MINUTES = 15
 MAX_REQUESTS_PER_MINUTE = 60
-MAX_UPLOAD_SIZE = 50 * 1024 * 1024
-ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".bmp", ".tiff", ".ico", ".mp4", ".webm", ".mov"}
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".bmp", ".tiff", ".ico", ".mp4", ".webm", ".mov", ".mp3", ".wav", ".ogg", ".flac", ".aac", ".m4a"}
 MAX_CONTENT_LENGTH = 10000
 MAX_COMMENT_LENGTH = 5000
 POST_CACHE_TTL = 60
@@ -39,3 +39,7 @@ YANDEX_CLIENT_SECRET = os.getenv("YANDEX_CLIENT_SECRET", "")
 YANDEX_REDIRECT_URI = os.getenv("YANDEX_REDIRECT_URI", "http://localhost/api/auth/yandex/callback")
 
 OAUTH_FRONTEND_REDIRECT = os.getenv("OAUTH_FRONTEND_REDIRECT", "http://localhost")
+
+CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME", "")
+CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY", "")
+CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET", "")

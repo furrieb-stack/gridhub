@@ -5,8 +5,8 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse
+from pathlib import Path as FilePath
 
 from database import create_tables
 from app.core.config import ALLOWED_ORIGINS, MAX_REQUESTS_PER_MINUTE, MAX_UPLOAD_SIZE
@@ -15,6 +15,7 @@ from app.core.security import hash_password
 from app.core.redis import redis_client, redis_pool
 from app.api.router import api_router
 from database import User, get_db
+from app.services.upload import VIDEO_EXTENSIONS, AUDIO_EXTENSIONS
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -22,12 +23,10 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="Gridhub API",
     description="Social network backend for Gridhub",
-    version="3.0.0",
+    version="3.1.0",
     docs_url="/docs",
     redoc_url="/redoc",
 )
-
-app.mount("/media", StaticFiles(directory="media"), name="media")
 
 app.add_middleware(
     TrustedHostMiddleware,
@@ -49,6 +48,22 @@ app.state.limiter = limiter
 app.add_exception_handler(429, rate_limit_handler)
 
 app.include_router(api_router)
+
+
+DOWNLOAD_EXTENSIONS = VIDEO_EXTENSIONS | AUDIO_EXTENSIONS
+
+
+@app.get("/media/{subdir:path}/{filename:path}")
+async def serve_media(subdir: str, filename: str):
+    file_path = FilePath("media") / subdir / filename
+    if not file_path.exists():
+        return JSONResponse(status_code=404, content={"detail": "File not found"})
+    ext = file_path.suffix.lower()
+    media_type = "application/octet-stream" if ext in DOWNLOAD_EXTENSIONS else None
+    headers = {}
+    if ext in DOWNLOAD_EXTENSIONS:
+        headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return FileResponse(str(file_path), media_type=media_type, headers=headers)
 
 
 @app.middleware("http")
@@ -87,11 +102,11 @@ async def security_headers_middleware(request: Request, call_next):
 
 def create_admin_user():
     db = next(get_db())
-    admin_email = os.getenv("ADMIN_EMAIL", "y52s@yandex.com")
+    admin_email = os.getenv("ADMIN_EMAIL")
     admin_pass = os.getenv("ADMIN_PASSWORD")
 
-    if not admin_pass:
-        logger.warning("ADMIN_PASSWORD not set in .env! Skipping admin creation.")
+    if not admin_email or not admin_pass:
+        logger.warning("ADMIN_EMAIL or ADMIN_PASSWORD not set in .env! Skipping admin creation.")
         return
 
     existing_admin = db.query(User).filter(User.email == admin_email).first()

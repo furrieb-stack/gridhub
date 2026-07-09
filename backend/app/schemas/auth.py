@@ -42,6 +42,28 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     id: int
     username: str
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    banner_url: Optional[str] = None
+    bio: Optional[str] = None
+    is_verified: bool
+    is_admin: bool
+    is_mod: bool
+    is_banned: bool
+    is_private: bool = False
+    privacy_type: str = "public"
+    privacy_settings: Optional[str] = None
+    ban_reason: Optional[str] = None
+    banned_at: Optional[datetime] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class UserAdminResponse(BaseModel):
+    id: int
+    username: str
     email: str
     display_name: Optional[str] = None
     avatar_url: Optional[str] = None
@@ -52,7 +74,11 @@ class UserResponse(BaseModel):
     is_mod: bool
     is_banned: bool
     is_private: bool = False
+    privacy_type: str = "public"
     privacy_settings: Optional[str] = None
+    ban_reason: Optional[str] = None
+    banned_at: Optional[datetime] = None
+    ban_ip: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -65,6 +91,7 @@ class UserUpdate(BaseModel):
     avatar_url: Optional[str] = None
     banner_url: Optional[str] = None
     is_private: Optional[bool] = None
+    privacy_type: Optional[str] = None
     privacy_settings: Optional[str] = None
 
 
@@ -81,8 +108,11 @@ class RefreshTokenRequest(BaseModel):
 
 class BanUserRequest(BaseModel):
     reason: Optional[str] = None
+    duration_hours: Optional[int] = None
     ban_ip: bool = False
     soft_ban: bool = False
+    delete_posts: bool = False
+    ban_from_subgrids: Optional[list[int]] = None
 
 
 class OAuthSetupRequest(BaseModel):

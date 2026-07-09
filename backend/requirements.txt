@@ -16,3 +16,4 @@ redis==5.0.1
 hiredis==2.3.2
 httpx==0.25.2
 pywebpush==2.3.0
+cloudinary

@@ -18,6 +18,7 @@ from app.api.stories import router as stories_router
 from app.api.oauth import router as oauth_router
 from app.api.top import router as top_router
 from app.api.push import router as push_router
+from app.api.metadata import router as metadata_router
 
 api_router = APIRouter()
 
@@ -39,3 +40,4 @@ api_router.include_router(karma_router)
 api_router.include_router(stories_router)
 api_router.include_router(top_router)
 api_router.include_router(push_router)
+api_router.include_router(metadata_router)

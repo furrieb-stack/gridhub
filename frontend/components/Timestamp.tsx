@@ -15,16 +15,17 @@ function formatRelative(date: Date): string {
   if (diff < 3600) return `${Math.floor(diff / 60)}m`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
   if (diff < 2592000) return `${Math.floor(diff / 86400)}d`;
-  return date.toLocaleDateString();
+  return date.toLocaleDateString(undefined, { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
 }
 
 function formatExact(date: Date): string {
-  return date.toLocaleDateString("en-US", {
+  return date.toLocaleDateString(undefined, {
     year: "numeric",
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZoneName: "short",
   });
 }
 

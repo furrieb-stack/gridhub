@@ -8,7 +8,7 @@ from database import get_db, User, Subgrid, SubgridSubscription, SubgridModerato
 from app.core.deps import limiter, get_current_active_user, get_optional_user
 from app.schemas.subgrid import SubgridCreate, SubgridUpdate, SubgridResponse
 from app.schemas.auth import UserResponse
-from app.utils.helpers import validate_url
+from app.utils.helpers import validate_url, build_author_dict
 from app.services.upload import save_upload_file
 from app.services.notification import create_notification
 from app.core.config import AVATAR_DIR
@@ -124,22 +124,7 @@ async def get_my_subgrids(
     result = []
     for subgrid in subgrids:
         owner = db.query(User).filter(User.id == subgrid.owner_id).first()
-        owner_dict = {
-            "id": owner.id,
-            "username": owner.username,
-            "email": owner.email,
-            "display_name": owner.display_name,
-            "avatar_url": owner.avatar_url,
-            "banner_url": owner.banner_url,
-            "bio": owner.bio,
-            "is_verified": owner.is_verified,
-            "is_admin": owner.is_admin,
-            "is_mod": owner.is_mod,
-            "is_banned": owner.is_banned,
-            "is_private": owner.is_private if hasattr(owner, 'is_private') else False,
-            "privacy_settings": owner.privacy_settings if hasattr(owner, 'privacy_settings') else None,
-            "created_at": owner.created_at,
-        } if owner else None
+        owner_dict = build_author_dict(owner)
 
         subgrid_dict = {
             "id": subgrid.id,

@@ -1,3 +1,4 @@
+import json
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -12,7 +13,7 @@ from app.core.deps import limiter, get_current_active_user
 from app.core.redis import cache_post, get_cached_post, invalidate_post_cache
 from app.schemas.post import PostCreate, PostUpdate, PostResponse
 from app.schemas.subgrid import SubgridResponse
-from app.utils.helpers import sanitize_content, update_karma
+from app.utils.helpers import sanitize_content, update_karma, build_author_dict
 from app.services.upload import save_upload_file
 from app.services.notification import create_notification
 from app.core.config import POST_MEDIA_DIR
@@ -94,23 +95,7 @@ async def create_post(
     media_list = [{"id": m.id, "url": m.url, "type": m.media_type} for m in post_media]
 
     author = db.query(User).filter(User.id == new_post.user_id).first()
-    author_dict = {
-        "id": author.id,
-        "username": author.username,
-        "email": author.email,
-        "display_name": author.display_name,
-        "avatar_url": author.avatar_url,
-        "banner_url": author.banner_url,
-        "bio": author.bio,
-        "is_verified": author.is_verified,
-        "is_admin": author.is_admin,
-        "is_mod": author.is_mod,
-        "is_banned": author.is_banned,
-        "is_private": author.is_private if hasattr(author, 'is_private') else False,
-        "privacy_settings": author.privacy_settings,
-        "created_at": author.created_at,
-    } if author else None
-
+    author_dict = build_author_dict(author)
     hashtags_in_content = re.findall(r"#[\wа-яёА-ЯЁ-]+", new_post.content)
     tags = list(set(hashtags_in_content))
 
@@ -147,17 +132,61 @@ async def get_posts(
     subgrid_id: Optional[int] = None,
     user_id: Optional[int] = None,
     sort: str = "new",
+    following: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
+    from database import Follow, Subgrid
+
     query = db.query(Post).join(User).filter(User.is_active == True, User.is_banned == False)
-    if not user_id:
+
+    if not user_id and not following:
         query = query.filter(Post.score >= -10)
+
+    if following:
+        followed_ids = (
+            db.query(Follow.followed_id)
+            .filter(Follow.follower_id == current_user.id)
+            .all()
+        )
+        followed_ids = [f[0] for f in followed_ids]
+        if not followed_ids:
+            return []
+        query = query.filter(Post.user_id.in_(followed_ids))
+    elif user_id:
+        query = query.filter(Post.user_id == user_id)
+    else:
+        followed_private_ids = set(
+            f[0] for f in db.query(Follow.followed_id)
+            .filter(Follow.follower_id == current_user.id)
+            .all()
+        )
+        query = query.filter(
+            (User.privacy_type == "public") |
+            ((User.privacy_type == "followers_only") & (User.id.in_(followed_private_ids))) |
+            (User.id == current_user.id)
+        )
+
+        privacy = {}
+        if current_user.privacy_settings:
+            try:
+                privacy = json.loads(current_user.privacy_settings)
+            except json.JSONDecodeError:
+                pass
+        if not privacy.get("show_nsfw", True):
+            nsfw_subgrid_ids = (
+                db.query(Subgrid.id)
+                .filter(Subgrid.is_nsfw == True)
+                .all()
+            )
+            nsfw_subgrid_ids = [s[0] for s in nsfw_subgrid_ids]
+            if nsfw_subgrid_ids:
+                query = query.filter(
+                    (Post.subgrid_id == None) | (~Post.subgrid_id.in_(nsfw_subgrid_ids))
+                )
 
     if subgrid_id:
         query = query.filter(Post.subgrid_id == subgrid_id)
-    if user_id:
-        query = query.filter(Post.user_id == user_id)
 
     query = query.order_by(Post.is_pinned.desc())
 
@@ -324,22 +353,7 @@ async def get_saved_posts(
     result = []
     for post in posts_sorted:
         author = author_map.get(post.user_id)
-        author_dict = {
-            "id": author.id,
-            "username": author.username,
-            "email": author.email,
-            "display_name": author.display_name,
-            "avatar_url": author.avatar_url,
-            "banner_url": author.banner_url,
-            "bio": author.bio,
-            "is_verified": author.is_verified,
-            "is_admin": author.is_admin,
-            "is_mod": author.is_mod,
-            "is_banned": author.is_banned,
-            "is_private": author.is_private if hasattr(author, 'is_private') else False,
-            "privacy_settings": author.privacy_settings,
-            "created_at": author.created_at,
-        } if author else None
+        author_dict = build_author_dict(author)
 
         post_dict = {
             "id": post.id,

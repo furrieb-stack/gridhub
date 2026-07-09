@@ -37,6 +37,7 @@ class User(Base):
     is_mod = Column(Boolean, default=False)
     is_banned = Column(Boolean, default=False)
     is_private = Column(Boolean, default=False)
+    privacy_type = Column(String(20), default="public")
     privacy_settings = Column(Text, nullable=True)
     
     banned_at = Column(DateTime, nullable=True)
@@ -172,6 +173,8 @@ class Comment(Base):
     upvotes = Column(Integer, default=0)
     downvotes = Column(Integer, default=0)
     score = Column(Integer, default=0)
+    likes = Column(Integer, default=0)
+    is_pinned = Column(Boolean, default=False)
     
     created_at = Column(DateTime, default=datetime.now(timezone.utc))
     updated_at = Column(DateTime, nullable=True)
@@ -181,6 +184,18 @@ class Comment(Base):
     post = relationship("Post", back_populates="comments")
     parent = relationship("Comment", remote_side=[id], backref="replies")
     votes = relationship("Vote", back_populates="comment", cascade="all, delete-orphan")
+    comment_likes = relationship("CommentLike", back_populates="comment", cascade="all, delete-orphan")
+
+class CommentLike(Base):
+    __tablename__ = "comment_likes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    comment_id = Column(Integer, ForeignKey("comments.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+
+    user = relationship("User", foreign_keys=[user_id])
+    comment = relationship("Comment", back_populates="comment_likes")
 
 # //Votes
 class Vote(Base):
