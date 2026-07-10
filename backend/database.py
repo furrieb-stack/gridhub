@@ -45,8 +45,8 @@ class User(Base):
     ban_ip = Column(String(45), nullable=True)
     soft_ban_data = Column(Text, nullable=True)
     
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     posts = relationship("Post", back_populates="author", cascade="all, delete-orphan")
     comments = relationship("Comment", back_populates="author", cascade="all, delete-orphan")
@@ -69,8 +69,8 @@ class Subgrid(Base):
     is_nsfw = Column(Boolean, default=False)
     
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     owner = relationship("User", back_populates="subgrids")
     posts = relationship("Post", back_populates="subgrid", cascade="all, delete-orphan")
@@ -86,7 +86,7 @@ class SubgridModerator(Base):
     subgrid_id = Column(Integer, ForeignKey("subgrids.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     added_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     
     subgrid = relationship("Subgrid", back_populates="moderators")
     user = relationship("User", foreign_keys=[user_id])
@@ -99,7 +99,7 @@ class SubgridSubscription(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     subgrid_id = Column(Integer, ForeignKey("subgrids.id"), nullable=False)
-    subscribed_at = Column(DateTime, default=datetime.now(timezone.utc))
+    subscribed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     
     user = relationship("User")
     subgrid = relationship("Subgrid", back_populates="subscribers")
@@ -112,7 +112,7 @@ class Flair(Base):
     name = Column(String(30), nullable=False)
     color = Column(String(7), nullable=True)
     subgrid_id = Column(Integer, ForeignKey("subgrids.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     
     subgrid = relationship("Subgrid", back_populates="flairs")
     posts = relationship("Post", back_populates="flair")
@@ -135,7 +135,7 @@ class Post(Base):
     share_count = Column(Integer, default=0)
     is_pinned = Column(Boolean, default=False)
     
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, nullable=True)
     
     author = relationship("User", back_populates="posts")
@@ -154,7 +154,7 @@ class PostMedia(Base):
     url = Column(String(500), nullable=False)
     media_type = Column(String(20), nullable=False)
     uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     
     post = relationship("Post", back_populates="media")
     uploader = relationship("User")
@@ -176,7 +176,7 @@ class Comment(Base):
     likes = Column(Integer, default=0)
     is_pinned = Column(Boolean, default=False)
     
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, nullable=True)
     deleted_at = Column(DateTime, nullable=True)
     
@@ -192,7 +192,7 @@ class CommentLike(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     comment_id = Column(Integer, ForeignKey("comments.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", foreign_keys=[user_id])
     comment = relationship("Comment", back_populates="comment_likes")
@@ -206,7 +206,7 @@ class Vote(Base):
     post_id = Column(Integer, ForeignKey("posts.id"), nullable=True)
     comment_id = Column(Integer, ForeignKey("comments.id"), nullable=True)
     value = Column(Integer, nullable=False)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     
     user = relationship("User")
     post = relationship("Post", back_populates="votes")
@@ -221,7 +221,7 @@ class Karma(Base):
     total_score = Column(Integer, default=0)
     post_karma = Column(Integer, default=0)
     comment_karma = Column(Integer, default=0)
-    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     user = relationship("User", back_populates="karma")
 
@@ -233,7 +233,7 @@ class LoginAttempt(Base):
     username = Column(String(30), nullable=False)
     ip_address = Column(String(45), nullable=False)
     success = Column(Boolean, default=False)
-    attempted_at = Column(DateTime, default=datetime.now(timezone.utc))
+    attempted_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 # //Notification
 class Notification(Base):
@@ -244,7 +244,7 @@ class Notification(Base):
     type = Column(String(50), nullable=False)
     data = Column(JSONB, nullable=True)
     read = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     
     user = relationship("User", back_populates="notifications")
 
@@ -256,7 +256,7 @@ class Story(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     media_url = Column(String(500), nullable=False)
     media_type = Column(String(20), default="image")
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     expires_at = Column(DateTime, nullable=False)
 
     user = relationship("User")
@@ -268,7 +268,7 @@ class StoryLike(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     story_id = Column(Integer, ForeignKey("stories.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", foreign_keys=[user_id])
     story = relationship("Story", back_populates="likes")
@@ -279,7 +279,7 @@ class WebSocketConnection(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    connected_at = Column(DateTime, default=datetime.now(timezone.utc))
+    connected_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     disconnected_at = Column(DateTime, nullable=True)
     ip_address = Column(String(45), nullable=True)
     
@@ -293,7 +293,7 @@ class PostView(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     post_id = Column(Integer, ForeignKey("posts.id"), nullable=False)
-    viewed_at = Column(DateTime, default=datetime.now(timezone.utc))
+    viewed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     
     user = relationship("User")
     post = relationship("Post")
@@ -307,7 +307,7 @@ class PushSubscription(Base):
     endpoint = Column(String(500), nullable=False)
     p256dh = Column(String(255), nullable=False)
     auth = Column(String(255), nullable=False)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="push_subscriptions")
 
@@ -318,7 +318,7 @@ class Follow(Base):
     id = Column(Integer, primary_key=True, index=True)
     follower_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     followed_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     
     follower = relationship("User", foreign_keys=[follower_id])
     followed = relationship("User", foreign_keys=[followed_id])
@@ -330,7 +330,7 @@ class SavedPost(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     post_id = Column(Integer, ForeignKey("posts.id"), nullable=False)
-    saved_at = Column(DateTime, default=datetime.now(timezone.utc))
+    saved_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", foreign_keys=[user_id])
     post = relationship("Post")
@@ -342,7 +342,7 @@ class Hashtag(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), unique=True, index=True, nullable=False)
     post_count = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 class PostHashtag(Base):
     __tablename__ = "post_hashtags"
@@ -366,7 +366,7 @@ class Report(Base):
     resolved = Column(Boolean, default=False)
     resolved_at = Column(DateTime, nullable=True)
     resolved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     
     user = relationship("User", foreign_keys=[user_id])
     resolver = relationship("User", foreign_keys=[resolved_by])
@@ -377,7 +377,7 @@ class VerificationRequest(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     status = Column(String(20), default="pending")
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     resolved_at = Column(DateTime, nullable=True)
     
     user = relationship("User")

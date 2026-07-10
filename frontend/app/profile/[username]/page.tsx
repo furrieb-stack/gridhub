@@ -54,10 +54,35 @@ export default function ProfilePage() {
   const [loadingTab, setLoadingTab] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("Posts");
+  
+  const [skip, setSkip] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const observer = useRef<IntersectionObserver | null>(null);
+  const hasMoreRef = useRef(hasMore);
+  useEffect(() => { hasMoreRef.current = hasMore; }, [hasMore]);
+
+  const lastItemRef = useCallback((node: HTMLDivElement) => {
+    if (observer.current) observer.current.disconnect();
+    if (!node) return;
+    observer.current = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && hasMoreRef.current) {
+        setSkip((prev) => prev + 20);
+      }
+    });
+    observer.current.observe(node);
+  }, []);
+
   const [bannerError, setBannerError] = useState(false);
   const bannerInput = useRef<HTMLInputElement>(null);
   const avatarInput = useRef<HTMLInputElement>(null);
   const { addToast } = useToast();
+
+  useEffect(() => {
+    setSkip(0);
+    setHasMore(true);
+  }, [activeTab]);
 
   const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -137,6 +162,7 @@ export default function ProfilePage() {
         if (postsRes.ok) {
           const postsData: ApiPost[] = await postsRes.json();
           setPosts(postsData);
+          setHasMore(postsData.length >= 20);
           setSessionCache(cacheKey, postsData);
         }
       } catch {
@@ -149,7 +175,7 @@ export default function ProfilePage() {
   }, [username, user]);
 
   useEffect(() => {
-    if (!user || !profile || !profile.id) return;
+    if (!user || !profile || !profile.id || skip > 0) return;
     const tok = localStorage.getItem("access_token");
     if (!tok) return;
     async function loadTab() {
@@ -159,18 +185,68 @@ export default function ProfilePage() {
           const res = await fetch(`/api/comments?user_id=${profile!.id}&limit=20`, {
             headers: { Authorization: `Bearer ${tok}` },
           });
-          if (res.ok) setComments(await res.json());
+          if (res.ok) {
+            const data = await res.json();
+            setComments(data);
+            setHasMore(data.length >= 20);
+          }
         } else if (activeTab === "Saved") {
           const res = await fetch(`/api/posts/saved?limit=20`, {
             headers: { Authorization: `Bearer ${tok}` },
           });
-          if (res.ok) setSavedPosts(await res.json());
+          if (res.ok) {
+            const data = await res.json();
+            setSavedPosts(data);
+            setHasMore(data.length >= 20);
+          }
         }
       } catch {}
       setLoadingTab(false);
     }
     loadTab();
-  }, [activeTab, profile, user]);
+  }, [activeTab, profile, user]); // Note: intentionally omitted skip here
+
+  useEffect(() => {
+    if (skip === 0 || !profile || !profile.id) return;
+    const tok = localStorage.getItem("access_token");
+    if (!tok) return;
+
+    async function fetchMore() {
+      setLoadingMore(true);
+      try {
+        if (activeTab === "Posts") {
+          const res = await fetch(`/api/posts?user_id=${profile!.id}&limit=20&skip=${skip}`, {
+            headers: { Authorization: `Bearer ${tok}` },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.length < 20) setHasMore(false);
+            setPosts((prev) => [...prev, ...data.filter((p: any) => !prev.some((ex) => ex.id === p.id))]);
+          }
+        } else if (activeTab === "Comments") {
+          const res = await fetch(`/api/comments?user_id=${profile!.id}&limit=20&skip=${skip}`, {
+            headers: { Authorization: `Bearer ${tok}` },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.length < 20) setHasMore(false);
+            setComments((prev) => [...prev, ...data.filter((c: any) => !prev.some((ex) => ex.id === c.id))]);
+          }
+        } else if (activeTab === "Saved") {
+          const res = await fetch(`/api/posts/saved?limit=20&skip=${skip}`, {
+            headers: { Authorization: `Bearer ${tok}` },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.length < 20) setHasMore(false);
+            setSavedPosts((prev) => [...prev, ...data.filter((p: any) => !prev.some((ex) => ex.id === p.id))]);
+          }
+        }
+      } catch {}
+      setLoadingMore(false);
+    }
+    fetchMore();
+  }, [skip, activeTab, profile]);
 
   if (!user) return null;
 
@@ -343,25 +419,34 @@ export default function ProfilePage() {
                     </div>
                   ) : (
                     <div className="flex flex-col gap-4">
-                      {posts.map((p) => (
-                        <Post
-                          key={p.id}
-                          id={p.id}
-                          author={{
-                            username: p.author?.username ?? profile.username,
-                            display_name: p.author?.display_name ?? null,
-                            avatar_url: p.author?.avatar_url ?? null,
-                            is_verified: p.author?.is_verified ?? false,
-                          }}
-                          content={p.content}
-                          media={p.media?.map((m) => ({ url: m.url })) ?? []}
-                          created_at={p.created_at}
-                          upvotes={p.upvotes}
-                          user_vote={p.user_vote ?? 0}
-                          comments_count={p.comment_count}
-                          compact
-                        />
-                      ))}
+                      {posts.map((p, idx) => {
+                        const isLast = idx === posts.length - 1;
+                        return (
+                          <div key={p.id} ref={isLast ? lastItemRef : null}>
+                            <Post
+                              id={p.id}
+                              author={{
+                                username: p.author?.username ?? profile.username,
+                                display_name: p.author?.display_name ?? null,
+                                avatar_url: p.author?.avatar_url ?? null,
+                                is_verified: p.author?.is_verified ?? false,
+                              }}
+                              content={p.content}
+                              media={p.media}
+                              created_at={p.created_at}
+                              upvotes={p.upvotes}
+                              user_vote={p.user_vote}
+                              comments_count={p.comment_count}
+                              compact
+                            />
+                          </div>
+                        );
+                      })}
+                      {loadingMore && (
+                        <div className="flex justify-center py-4">
+                          <div className="w-6 h-6 border-2 border-white/20 border-t-[#FFD190] rounded-full animate-spin" />
+                        </div>
+                      )}
                     </div>
                   )
                 )}
@@ -377,17 +462,27 @@ export default function ProfilePage() {
                     </div>
                   ) : (
                     <div className="flex flex-col gap-3">
-                      {comments.map((c: any) => (
-                        <div key={c.id} className="p-4 rounded-[16px] border border-white/[0.04]" style={{ backgroundColor: "rgba(255,255,255,0.02)" }}>
-                          <div className="flex items-center gap-2 mb-2">
-                            <Link href={`/post/${c.post_id}`} className="text-[#FFD190] text-[13px] font-bold hover:underline">
-                              View post
-                            </Link>
-                            <Timestamp date={c.created_at} />
-                          </div>
-                          <p className="text-white/70 text-[14px] leading-relaxed">{c.content}</p>
+                      {comments.map((c, idx) => {
+                        const isLast = idx === comments.length - 1;
+                        return (
+                          <Link key={c.id} href={`/post/${c.post_id}`} className="block">
+                            <div ref={isLast ? lastItemRef : null} className="p-4 rounded-[16px] border border-white/[0.04] bg-white/[0.02] hover:bg-white/[0.04] transition-colors cursor-pointer">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-white text-[14px] font-bold">@{profile.username}</span>
+                                <span className="text-white/40 text-[12px]">commented on post #{c.post_id}</span>
+                                <span className="text-white/20 text-[12px]">•</span>
+                                <Timestamp date={c.created_at} className="text-white/40 text-[12px]" />
+                              </div>
+                              <p className="text-white/80 text-[14px] leading-relaxed break-words">{c.content}</p>
+                            </div>
+                          </Link>
+                        );
+                      })}
+                      {loadingMore && (
+                        <div className="flex justify-center py-4">
+                          <div className="w-6 h-6 border-2 border-white/20 border-t-[#FFD190] rounded-full animate-spin" />
                         </div>
-                      ))}
+                      )}
                     </div>
                   )
                 )}
@@ -403,25 +498,34 @@ export default function ProfilePage() {
                     </div>
                   ) : (
                     <div className="flex flex-col gap-4">
-                      {savedPosts.map((p: any, i) => (
-                        <Post
-                          key={p.id + "-" + i}
-                          id={p.id}
-                          author={{
-                            username: p.author?.username ?? profile.username,
-                            display_name: p.author?.display_name ?? null,
-                            avatar_url: p.author?.avatar_url ?? null,
-                            is_verified: p.author?.is_verified ?? false,
-                          }}
-                          content={p.content}
-                          media={p.media?.map((m: any) => ({ url: m.url })) ?? []}
-                          created_at={p.created_at}
-                          upvotes={p.upvotes}
-                          user_vote={p.user_vote ?? 0}
-                          comments_count={p.comment_count}
-                          compact
-                        />
-                      ))}
+                      {savedPosts.map((p: any, i) => {
+                        const isLast = i === savedPosts.length - 1;
+                        return (
+                          <div key={p.id + "-" + i} ref={isLast ? lastItemRef : null}>
+                            <Post
+                              id={p.id}
+                              author={{
+                                username: p.author?.username ?? profile.username,
+                                display_name: p.author?.display_name ?? null,
+                                avatar_url: p.author?.avatar_url ?? null,
+                                is_verified: p.author?.is_verified ?? false,
+                              }}
+                              content={p.content}
+                              media={p.media?.map((m: any) => ({ url: m.url })) ?? []}
+                              created_at={p.created_at}
+                              upvotes={p.upvotes}
+                              user_vote={p.user_vote ?? 0}
+                              comments_count={p.comment_count}
+                              compact
+                            />
+                          </div>
+                        );
+                      })}
+                      {loadingMore && (
+                        <div className="flex justify-center py-4">
+                          <div className="w-6 h-6 border-2 border-white/20 border-t-[#FFD190] rounded-full animate-spin" />
+                        </div>
+                      )}
                     </div>
                   )
                 )}

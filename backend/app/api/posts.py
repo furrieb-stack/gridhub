@@ -211,9 +211,11 @@ async def get_posts(
             (func.log(Post.upvotes + 1) + (func.extract("epoch", Post.created_at) / 45000)).desc()
         )
     elif sort == "for_you":
-        # 2 random popular, 1 random non-popular
-        popular = query.filter(Post.score >= 5).order_by(func.random()).limit(min(limit * 2 // 3, 66)).all()
-        non_popular = query.filter(Post.score < 5).order_by(func.random()).limit(min(limit // 3, 34)).all()
+        # We want to fetch `limit` random posts.
+        pop_limit = max(1, limit * 2 // 3)
+        non_pop_limit = limit - pop_limit
+        popular = query.filter(Post.score >= 5).order_by(func.random()).limit(pop_limit).all()
+        non_popular = query.filter(Post.score < 5).order_by(func.random()).limit(non_pop_limit).all()
         posts = popular + non_popular
         import random
         random.shuffle(posts)

@@ -22,8 +22,8 @@ const NAV_ITEMS: readonly NavItem[] = [
 ] as const;
 
 function MobileNavIcon({ name, active }: { name: string; active: boolean }) {
-  const c = active ? "rgba(255, 255, 255, 1)" : "rgba(255, 255, 255, 0.45)";
-  const props = { width: 22, height: 22, fill: c, viewBox: "0 0 24 24" };
+  const c = active ? "rgba(255, 255, 255, 1)" : "rgba(255, 255, 255, 0.4)";
+  const props = { width: 26, height: 26, fill: c, viewBox: "0 0 24 24", className: "transition-transform duration-200" };
 
   switch (name) {
     case "feed":
@@ -34,14 +34,14 @@ function MobileNavIcon({ name, active }: { name: string; active: boolean }) {
       );
     case "explore":
       return (
-        <svg {...props} fill="none" stroke={c} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+        <svg {...props} fill="none" stroke={c} strokeWidth={2.3} strokeLinecap="round" strokeLinejoin="round">
           <circle cx="11" cy="11" r="8" />
           <line x1="21" y1="21" x2="16.65" y2="16.65" />
         </svg>
       );
     case "all-pages":
       return (
-        <svg {...props} fill="none" stroke={c} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+        <svg {...props} fill="none" stroke={c} strokeWidth={2.3} strokeLinecap="round" strokeLinejoin="round">
           <rect x="3" y="3" width="7" height="7" rx="1.5" />
           <rect x="14" y="3" width="7" height="7" rx="1.5" />
           <rect x="14" y="14" width="7" height="7" rx="1.5" />
@@ -129,16 +129,16 @@ export default function MobileNav() {
     <>
       <button
         onClick={() => setNewPostOpen(true)}
-        className="fixed bottom-[108px] right-4 md:right-6 z-40 block md:hidden w-[56px] h-[56px] rounded-full bg-[#1a1a1a]/90 backdrop-blur-md border border-white/[0.08] text-white flex items-center justify-center shadow-[0_8px_30px_rgba(0,0,0,0.8)] hover:scale-105 active:scale-95 transition-all"
+        className="fixed bottom-[100px] right-5 z-40 block md:hidden w-[52px] h-[52px] rounded-full backdrop-blur-[30px] saturate-[150%] bg-[#FFFFFF]/[0.08] border border-[#FFF1E1]/[0.1] text-white flex items-center justify-center shadow-[0_12px_40px_rgba(0,0,0,0.5)] hover:scale-105 active:scale-95 transition-all"
       >
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
           <line x1="12" y1="5" x2="12" y2="19" />
           <line x1="5" y1="12" x2="19" y2="12" />
         </svg>
       </button>
 
-      <nav className="fixed bottom-6 inset-x-0 mx-auto w-[94%] max-w-[420px] z-50 block md:hidden backdrop-blur-[60px] saturate-[180%] bg-[#12110f]/60 rounded-[32px] border border-white/[0.1] shadow-[0_30px_60px_rgba(0,0,0,0.85)]">
-        <div className="flex items-center justify-between px-2.5 h-[72px]">
+      <nav className="fixed bottom-6 inset-x-0 mx-auto w-[90%] max-w-[350px] z-50 block md:hidden backdrop-blur-[30px] saturate-[150%] bg-[#FFFFFF]/[0.06] rounded-full border border-[#FFF1E1]/[0.08] shadow-[0_24px_50px_rgba(0,0,0,0.6)]">
+        <div className="flex items-center justify-between px-4 h-16">
           {NAV_ITEMS.map((item) => {
             const active = pathname === item.href || (pathname === "/" && item.label === "Feed");
             const badge = item.label === "Alerts" ? unreadCount : 0;
@@ -146,21 +146,16 @@ export default function MobileNav() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`relative flex flex-col items-center justify-center w-[72px] h-[56px] rounded-full transition-all duration-300 active:scale-95 ${
-                  active ? "bg-white/[0.12]" : "hover:bg-white/[0.05]"
-                }`}
+                className="relative flex items-center justify-center w-12 h-12 rounded-full transition-all duration-200 active:scale-90"
               >
-                <div className="relative flex items-center justify-center h-6 mb-0.5">
+                <div className={`relative flex items-center justify-center transition-transform ${active ? "scale-110" : "hover:opacity-80"}`}>
                   <MobileNavIcon name={item.icon} active={active} />
+                  
+                  {/* Аккуратный минималистичный маркер-точка как на макете */}
                   {badge > 0 && (
-                    <span className="absolute -top-1.5 -right-2.5 w-4 h-4 rounded-full bg-[#FFD190] text-[#12110f] text-[9px] font-black flex items-center justify-center ring-2 ring-[#12110f]/80">
-                      {badge > 99 ? '99+' : badge}
-                    </span>
+                    <span className="absolute top-0 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#FFD190] ring-[1.5px] ring-[#12110f]" />
                   )}
                 </div>
-                <span className={`text-[10px] font-bold tracking-wide transition-colors ${active ? "text-white" : "text-white/45"}`}>
-                  {item.label}
-                </span>
               </Link>
             );
           })}
@@ -168,29 +163,24 @@ export default function MobileNav() {
           <div className="relative shrink-0" ref={menuRef}>
             <button
               onClick={() => setMenuOpen(!menuOpen)}
-              className={`relative flex flex-col items-center justify-center w-[72px] h-[56px] rounded-full transition-all duration-300 active:scale-95 ${
-                menuOpen || pathname.startsWith("/@") ? "bg-white/[0.12]" : "hover:bg-white/[0.05]"
-              }`}
+              className="relative flex items-center justify-center w-12 h-12 rounded-full transition-all duration-200 active:scale-90"
             >
-              <div className="h-6 flex items-center justify-center mb-0.5">
-                <div className={`w-5 h-5 rounded-full overflow-hidden transition-all duration-300 ${menuOpen || pathname.startsWith("/@") ? "ring-2 ring-white" : "ring-[1.5px] ring-white/40"}`}>
+              <div className={`flex items-center justify-center transition-all ${menuOpen || pathname.startsWith("/@") ? "scale-110" : "hover:opacity-80"}`}>
+                <div className={`w-6 h-6 rounded-full overflow-hidden transition-all duration-200 ${menuOpen || pathname.startsWith("/@") ? "ring-[2px] ring-white" : "ring-[1.5px] ring-white/30"}`}>
                   <Avatar
                     src={user?.avatar_url}
                     username={user?.username ?? ""}
                     displayName={user?.display_name}
-                    size={20}
+                    size={24}
                   />
                 </div>
               </div>
-              <span className={`text-[10px] font-bold tracking-wide transition-colors ${menuOpen || pathname.startsWith("/@") ? "text-white" : "text-white/45"}`}>
-                Profile
-              </span>
             </button>
 
             {menuOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-                <div className="absolute bottom-[calc(100%+20px)] right-0 w-48 rounded-[24px] border border-white/[0.12] bg-[#1a1a1a]/95 backdrop-blur-[48px] shadow-[0_24px_60px_rgba(0,0,0,0.9)] z-50 overflow-hidden p-2">
+                <div className="absolute bottom-[calc(100%+16px)] right-0 w-48 rounded-[24px] border border-white/[0.1] bg-[#1a1a1a]/95 backdrop-blur-[32px] shadow-[0_24px_60px_rgba(0,0,0,0.8)] z-50 overflow-hidden p-2">
                   <Link
                     href={user?.username ? `/@${user.username}` : "#"}
                     onClick={() => setMenuOpen(false)}

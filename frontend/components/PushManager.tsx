@@ -14,6 +14,60 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   return output as unknown as Uint8Array<ArrayBuffer>;
 }
 
+async function saveSubscriptionOnServer(subJSON: string) {
+  const token = localStorage.getItem("access_token");
+  if (!token) return;
+  try {
+    await fetch("/api/push/subscribe", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ subscription: JSON.parse(subJSON) }),
+    });
+  } catch {}
+}
+
+async function subscribe(reg: ServiceWorkerRegistration) {
+  const existing = localStorage.getItem("push_subscription");
+  if (existing) {
+    try {
+      const currentSub = await reg.pushManager.getSubscription();
+      if (currentSub && JSON.stringify(currentSub.toJSON()) === existing) {
+        return;
+      }
+    } catch {}
+  }
+
+  try {
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+    });
+    const subJSON = JSON.stringify(sub.toJSON());
+    localStorage.setItem("push_subscription", subJSON);
+    await saveSubscriptionOnServer(subJSON);
+  } catch (e) {
+    console.error("Push subscription failed:", e);
+  }
+}
+
+export async function requestPushSubscription() {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    if (Notification.permission === "default") {
+      const perm = await Notification.requestPermission();
+      if (perm === "granted") await subscribe(reg);
+    } else if (Notification.permission === "granted") {
+      await subscribe(reg);
+    }
+  } catch (err) {
+    console.error("Failed to request push subscription:", err);
+  }
+}
+
 export default function PushManager() {
   useEffect(() => {
     const user = getStoredUser();
@@ -21,56 +75,12 @@ export default function PushManager() {
 
     if ("serviceWorker" in navigator && "PushManager" in window) {
       navigator.serviceWorker.register("/sw.js").then((reg) => {
-        if (Notification.permission === "default") {
-          Notification.requestPermission().then((perm) => {
-            if (perm === "granted") subscribe(reg);
-          });
-        } else if (Notification.permission === "granted") {
+        if (Notification.permission === "granted") {
           subscribe(reg);
         }
       }).catch(console.error);
     }
   }, []);
-
-  async function subscribe(reg: ServiceWorkerRegistration) {
-    const existing = localStorage.getItem("push_subscription");
-    if (existing) {
-      try {
-        const sub = JSON.parse(existing);
-        const currentSub = await reg.pushManager.getSubscription();
-        if (currentSub && JSON.stringify(currentSub.toJSON()) === existing) {
-          return;
-        }
-      } catch {}
-    }
-
-    try {
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-      });
-      const subJSON = JSON.stringify(sub.toJSON());
-      localStorage.setItem("push_subscription", subJSON);
-      saveSubscriptionOnServer(subJSON);
-    } catch (e) {
-      console.error("Push subscription failed:", e);
-    }
-  }
-
-  async function saveSubscriptionOnServer(subJSON: string) {
-    const token = localStorage.getItem("access_token");
-    if (!token) return;
-    try {
-      await fetch("/api/push/subscribe", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ subscription: JSON.parse(subJSON) }),
-      });
-    } catch {}
-  }
 
   return null;
 }

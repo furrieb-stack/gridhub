@@ -445,7 +445,11 @@ export default function SettingsPage() {
                             className="sr-only peer"
                             checked={(privacySettings as any)[item.key] ?? true}
                             onChange={() => {
-                              setPrivacySettings((prev: Record<string, boolean>) => ({ ...prev, [item.key]: !prev[item.key] }));
+                              const newValue = !(privacySettings as any)[item.key];
+                              setPrivacySettings((prev: Record<string, boolean>) => ({ ...prev, [item.key]: newValue }));
+                              if (item.key === "push_notifications" && newValue) {
+                                import("@/components/PushManager").then((m) => m.requestPushSubscription());
+                              }
                             }}
                           />
                           <div className="w-12 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-[24px] peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#FFD190] peer-checked:after:bg-[#12110f] peer-checked:after:border-none border border-white/5" />

@@ -22,23 +22,41 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3000);
+    }, 3500);
   };
 
   return (
     <ToastContext.Provider value={{ addToast }}>
       {children}
-      <div className="fixed bottom-24 md:bottom-5 right-5 z-[9999] flex flex-col gap-3 pointer-events-none">
+      <div className="fixed top-5 inset-x-0 mx-auto z-[9999] flex flex-col items-center gap-2.5 pointer-events-none w-[90%] max-w-[360px]">
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`px-4 py-3 rounded-[12px] text-[14px] font-medium text-white shadow-xl backdrop-blur-md pointer-events-auto transition-all ${
-              t.type === "success" ? "bg-green-500/80 border border-green-500/30" :
-              t.type === "error" ? "bg-red-500/80 border border-red-500/30" :
-              "bg-[#1a1a1a]/90 border border-white/10"
-            }`}
+            className="flex items-center gap-3 w-full px-4 py-3 rounded-full backdrop-blur-[32px] saturate-[150%] bg-[#FFFFFF]/[0.06] border border-[#FFF1E1]/[0.08] shadow-[0_16px_40px_rgba(0,0,0,0.5)] pointer-events-auto animate-in fade-in slide-in-from-top-4 duration-300"
           >
-            {t.message}
+            <div className="flex shrink-0 items-center justify-center w-5 h-5 rounded-full">
+              {t.type === "success" && (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFD190" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              )}
+              {t.type === "error" && (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F87171" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              )}
+              {t.type === "info" && (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="16" x2="12" y2="12" />
+                  <line x1="12" y1="8" x2="12.01" y2="8" />
+                </svg>
+              )}
+            </div>
+            <span className="text-[13px] font-semibold tracking-wide text-white/90 truncate flex-1">
+              {t.message}
+            </span>
           </div>
         ))}
       </div>

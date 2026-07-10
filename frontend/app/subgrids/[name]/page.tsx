@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   getStoredUser, fetchSubgrids, fetchSubgrid, toggleSubscribe,
@@ -51,6 +51,50 @@ export default function SubgridPage() {
   const [modError, setModError] = useState("");
   const [newPostOpen, setNewPostOpen] = useState(false);
 
+  const [skip, setSkip] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const observer = useRef<IntersectionObserver | null>(null);
+  const hasMoreRef = useRef(hasMore);
+  useEffect(() => { hasMoreRef.current = hasMore; }, [hasMore]);
+  
+  const lastPostRef = useCallback((node: HTMLDivElement) => {
+    if (observer.current) observer.current.disconnect();
+    if (!node) return;
+    observer.current = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && hasMoreRef.current) {
+        setSkip((prev) => prev + 20);
+      }
+    });
+    observer.current.observe(node);
+  }, []);
+
+  useEffect(() => {
+    if (skip === 0 || !subgrid) return;
+    async function fetchMore() {
+      setLoadingMore(true);
+      try {
+        const res = await fetch(`/api/posts?subgrid_id=${subgrid!.id}&sort=new&limit=20&skip=${skip}`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.length < 20) setHasMore(false);
+          setPosts((prev) => {
+            const newPosts = data.filter((p: any) => !prev.some((existing) => existing.id === p.id));
+            return [...prev, ...newPosts];
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch more posts", err);
+      } finally {
+        setLoadingMore(false);
+      }
+    }
+    fetchMore();
+  }, [skip, subgrid]);
+
   const isOwner = user && subgrid && user.id === subgrid.owner_id;
   const isMod = user && mods.some((m) => m.id === user.id);
   const canEdit = isOwner || isMod;
@@ -85,6 +129,7 @@ export default function SubgridPage() {
       if (postsRes.ok) {
         const postsData = await postsRes.json();
         setPosts(postsData);
+        setHasMore(postsData.length >= 20);
         setSessionCache(cacheKey, postsData);
       }
     } catch {
@@ -224,23 +269,38 @@ export default function SubgridPage() {
                 </div>
               ) : (
                 <div className="flex flex-col gap-3 mb-8">
-                  {posts.map((p) => (
-                    <Post
-                      key={p.id}
-                      id={p.id}
-                      author={{
-                        username: p.author?.username ?? "unknown",
-                        display_name: p.author?.display_name ?? null,
-                        avatar_url: p.author?.avatar_url ?? null,
-                        is_verified: p.author?.is_verified ?? false,
-                      }}
-                      content={p.content}
-                      media={p.media?.map((m) => ({ url: m.url })) ?? []}
-                      created_at={p.created_at}
-                      upvotes={p.upvotes}
-                      comments_count={p.comment_count}
-                    />
-                  ))}
+                  {posts.map((p: any, idx) => {
+                    const isLast = idx === posts.length - 1;
+                    return (
+                      <div key={p.id} ref={isLast ? lastPostRef : null}>
+                        <Post
+                          id={p.id}
+                          author={{
+                            username: p.author?.username ?? "unknown",
+                            display_name: p.author?.display_name ?? null,
+                            avatar_url: p.author?.avatar_url ?? null,
+                            is_verified: p.author?.is_verified ?? false,
+                          }}
+                          content={p.content}
+                          media={p.media?.map((m: any) => ({ url: m.url })) ?? []}
+                          created_at={p.created_at}
+                          upvotes={p.upvotes}
+                          downvotes={p.downvotes ?? 0}
+                          score={p.score ?? 0}
+                          user_vote={p.user_vote ?? 0}
+                          share_count={p.share_count ?? 0}
+                          comments_count={p.comment_count ?? 0}
+                          subgrid={p.subgrid ?? null}
+                          title={p.title ?? null}
+                        />
+                      </div>
+                    );
+                  })}
+                  {loadingMore && (
+                    <div className="flex justify-center py-4">
+                      <div className="w-6 h-6 border-2 border-white/20 border-t-[#FFD190] rounded-full animate-spin" />
+                    </div>
+                  )}
                 </div>
               )}
 

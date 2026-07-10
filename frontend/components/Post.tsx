@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { getStoredUser, type User } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -71,28 +71,28 @@ export default function Post({
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const { addToast } = useToast();
+  const isFullPage = !compact;
 
   useEffect(() => {
     setDisplayContent(content);
   }, [content]);
 
-  const { addToast } = useToast();
-
   useEffect(() => {
     setCurrentUser(getStoredUser());
   }, []);
 
-  const [isSaved, setIsSaved] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-
-  const isFullPage = !compact;
-
   async function handleVote(value: 1 | -1) {
     const token = localStorage.getItem("access_token");
-    if (!token) return;
+    if (!token) {
+      addToast("You must be logged in to vote", "error");
+      return;
+    }
     const next = voteState === value ? 0 : value;
     
-    // Calculate score difference based on vote state change
     let diff = 0;
     if (voteState === 1 && next === 0) diff = -1;
     else if (voteState === -1 && next === 0) diff = 1;
@@ -125,14 +125,20 @@ export default function Post({
 
   async function handleSave() {
     const token = localStorage.getItem("access_token");
-    if (!token) return;
+    if (!token) {
+      addToast("You must be logged in to save posts", "error");
+      return;
+    }
     const method = isSaved ? "DELETE" : "POST";
     try {
       const res = await fetch(`/api/posts/${id}/save`, {
         method,
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) setIsSaved(!isSaved);
+      if (res.ok) {
+        setIsSaved(!isSaved);
+        addToast(isSaved ? "Post removed from saves" : "Post saved successfully!", "success");
+      }
     } catch (e) {
       console.error(e);
     }
@@ -160,17 +166,17 @@ export default function Post({
   }
 
   async function handleShare() {
-    navigator.clipboard.writeText(`${window.location.origin}/post/${id}`);
-
-    const token = localStorage.getItem("access_token");
-    if (token) {
-      fetch(`/api/posts/${id}/share`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` }
-      }).catch(console.error);
+    if (typeof window !== "undefined") {
+      navigator.clipboard.writeText(`${window.location.origin}/post/${id}`);
+      const token = localStorage.getItem("access_token");
+      if (token) {
+        fetch(`/api/posts/${id}/share`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` }
+        }).catch(console.error);
+      }
+      addToast("Link copied to clipboard!", "success");
     }
-
-    addToast("Link copied to clipboard!", "success");
   }
 
   async function handleDelete() {
@@ -182,6 +188,7 @@ export default function Post({
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
+        addToast("Post deleted", "success");
         window.dispatchEvent(new CustomEvent("post-deleted", { detail: { id } }));
       } else {
         addToast("Failed to delete post", "error");
@@ -206,6 +213,7 @@ export default function Post({
       if (res.ok) {
         setIsEditing(false);
         setDisplayContent(editContent);
+        addToast("Post updated successfully", "success");
       } else {
         addToast("Failed to edit post", "error");
       }
@@ -224,8 +232,8 @@ export default function Post({
         borderColor: "rgba(255, 255, 255, 0.04)",
       }}
     >
-      <div className="px-5 pt-5 pb-4">
-        <div className="flex items-start justify-between gap-3">
+      <div className="pt-5 pb-4">
+        <div className="flex items-start justify-between gap-3 px-5">
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <Link href={`/@${author.username}`} className="relative shrink-0">
               <div className="w-[42px] h-[42px] rounded-full overflow-hidden bg-white/10">
@@ -326,7 +334,7 @@ export default function Post({
         </div>
 
         {isEditing ? (
-          <div className="mt-4">
+          <div className="mt-4 px-5">
             <textarea
               className="w-full bg-[#12110f] border border-white/10 rounded-xl p-3 text-white text-[15px] focus:outline-none focus:border-[#FFD190] resize-none"
               rows={4}
@@ -346,7 +354,7 @@ export default function Post({
         ) : (
           <div>
             <div
-              className={`text-white/80 text-[15px] mt-4 leading-relaxed whitespace-pre-wrap break-words ${
+              className={`text-white/80 text-[15px] mt-4 leading-relaxed whitespace-pre-wrap break-words px-5 ${
                 !isFullPage ? "line-clamp-2" : ""
               }`}
               style={{ overflowWrap: "break-word", wordBreak: "break-word" }}
@@ -355,13 +363,13 @@ export default function Post({
             </div>
             
             {media && media.length > 0 && (
-              <div className="mt-4 rounded-xl overflow-hidden border border-white/10 relative max-h-[500px]">
+              <div className="mt-4 w-full overflow-hidden relative max-h-[500px] bg-black/20">
                 {media.map((m, idx) => (
                   <img 
                     key={idx} 
                     src={m.url} 
                     alt="Post media" 
-                    className="w-full h-auto object-cover max-h-[500px] cursor-pointer hover:opacity-90 transition-opacity" 
+                    className="w-full h-auto object-cover max-h-[500px] cursor-pointer hover:opacity-95 transition-opacity" 
                     onClick={() => {
                       setViewerIndex(idx);
                       setViewerOpen(true);
@@ -372,12 +380,14 @@ export default function Post({
             )}
 
             {!isFullPage && (
-              <Link
-                href={`/post/${id}`}
-                className="inline-block mt-2 text-[#FFD190] text-[13px] font-bold hover:underline transition-colors"
-              >
-                Read more
-              </Link>
+              <div className="px-5">
+                <Link
+                  href={`/post/${id}`}
+                  className="inline-block mt-2 text-[#FFD190] text-[13px] font-bold hover:underline transition-colors"
+                >
+                  Read more
+                </Link>
+              </div>
             )}
           </div>
         )}

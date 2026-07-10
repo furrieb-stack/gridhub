@@ -1,3 +1,6 @@
+# Gridhub API v 4.0.0
+# Developed by meekazi (aka .furrieb)
+
 import os
 import time
 import json
@@ -8,8 +11,11 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from pathlib import Path as FilePath
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 
 from database import create_tables, get_db, User
 from app.core.config import ALLOWED_ORIGINS, MAX_REQUESTS_PER_MINUTE, MAX_UPLOAD_SIZE
@@ -19,7 +25,7 @@ from app.core.redis import redis_client, redis_pool
 from app.api.router import api_router
 from app.services.upload import VIDEO_EXTENSIONS, AUDIO_EXTENSIONS
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(level=logging.ERROR, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
@@ -28,9 +34,9 @@ app = FastAPI(
     title="Gridhub API",
     description="Social network backend for Gridhub",
     version="3.1.0",
-    docs_url=None if ENVIRONMENT == "production" else "/docs",
-    redoc_url=None if ENVIRONMENT == "production" else "/redoc",
-    openapi_url=None if ENVIRONMENT == "production" else "/openapi.json",
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
 )
 
 app.add_middleware(
@@ -51,6 +57,36 @@ app.add_middleware(
 
 app.state.limiter = limiter
 app.add_exception_handler(429, rate_limit_handler)
+
+@app.exception_handler(SQLAlchemyError)
+async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
+    logger.error(f"DB Error: {exc}")
+    return JSONResponse(
+        status_code=400,
+        content={"detail": "Data processing error"}
+    )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"System Error: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"}
+    )
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail}
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=422,
+        content={"detail": "Invalid data format"}
+    )
 
 app.include_router(api_router)
 
@@ -113,7 +149,7 @@ def create_admin_user():
     admin_pass = os.getenv("ADMIN_PASSWORD")
 
     if not admin_email or not admin_pass:
-        logger.warning("ADMIN_EMAIL or ADMIN_PASSWORD not set in .env! Skipping admin creation.")
+        logger.warning("Admin credentials not set. Skipping.")
         return
 
     existing_admin = db.query(User).filter(User.email == admin_email).first()
@@ -131,9 +167,6 @@ def create_admin_user():
         )
         db.add(admin_user)
         db.commit()
-        logger.info("Admin user created from .env")
-    else:
-        logger.info("Admin already exists")
 
 
 async def process_pending_deletions():
@@ -144,8 +177,6 @@ async def process_pending_deletions():
                 user_id = int(key.split(":")[-1])
                 data = await redis_client.get(key)
                 if data:
-                    info = json.loads(data)
-                    logger.info(f"Processing pending deletion for user {user_id} ({info.get('username')})")
                     from sqlalchemy.orm import Session
                     from database import SessionLocal
                     db = SessionLocal()
@@ -154,12 +185,11 @@ async def process_pending_deletions():
                         if user:
                             db.delete(user)
                             db.commit()
-                            logger.info(f"User {user_id} deleted after 24h")
                     finally:
                         db.close()
                     await redis_client.delete(key)
         except Exception as e:
-            logger.error(f"Pending deletion error: {e}")
+            logger.error(f"Deletion error: {e}")
         await asyncio.sleep(60)
 
 
@@ -169,11 +199,9 @@ def startup():
     create_admin_user()
     loop = asyncio.get_event_loop()
     loop.create_task(process_pending_deletions())
-    logger.info("Gridhub API started successfully")
 
 
 @app.on_event("shutdown")
 async def shutdown():
     await redis_client.close()
     await redis_pool.disconnect()
-    logger.info("Gridhub API shut down")

@@ -9,7 +9,8 @@ interface TimestampProps {
 
 function formatRelative(date: Date): string {
   const now = new Date();
-  const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
+  let diff = Math.floor((now.getTime() - date.getTime()) / 1000);
+  if (diff < 0) diff = 0;
 
   if (diff < 60) return `${diff}s`;
   if (diff < 3600) return `${Math.floor(diff / 60)}m`;

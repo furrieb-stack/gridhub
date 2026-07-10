@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, List
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.auth import UserResponse
 from app.schemas.subgrid import SubgridResponse
@@ -10,8 +10,8 @@ from app.schemas.subgrid import SubgridResponse
 class PostCreate(BaseModel):
     title: Optional[str] = Field(None, max_length=100)
     content: str = Field(..., min_length=0, max_length=10000)
-    subgrid_id: Optional[int] = Field(None, ge=1)
-    flair_id: Optional[int] = Field(None, ge=1)
+    subgrid_id: Optional[int] = Field(None, ge=1, le=2147483647)
+    flair_id: Optional[int] = Field(None, ge=1, le=2147483647)
     media_ids: Optional[list[int]] = Field(None, max_length=10)
 
     model_config = {
@@ -19,16 +19,32 @@ class PostCreate(BaseModel):
         "str_strip_whitespace": True
     }
 
+    @field_validator("content", "title")
+    @classmethod
+    def clean_strings(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            v = v.replace("\x00", "")
+            v = v.encode("utf-8", errors="ignore").decode("utf-8", errors="ignore")
+        return v
+
 
 class PostUpdate(BaseModel):
     title: Optional[str] = Field(None, max_length=100)
     content: Optional[str] = Field(None, min_length=0, max_length=10000)
-    flair_id: Optional[int] = Field(None, ge=1)
+    flair_id: Optional[int] = Field(None, ge=1, le=2147483647)
 
     model_config = {
         "extra": "forbid",
         "str_strip_whitespace": True
     }
+
+    @field_validator("content", "title")
+    @classmethod
+    def clean_strings(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            v = v.replace("\x00", "")
+            v = v.encode("utf-8", errors="ignore").decode("utf-8", errors="ignore")
+        return v
 
 
 class PostResponse(BaseModel):
