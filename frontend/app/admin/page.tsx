@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { getStoredUser, type User } from "@/lib/api";
 import Navbar from "@/components/Navbar";
 import MobileNav from "@/components/MobileNav";
+import ConfirmModal from "@/components/ConfirmModal";
 
 interface ReportItem {
   id: number;
@@ -44,6 +45,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [reports, setReports] = useState<ReportItem[]>([]);
   const [subgrids, setSubgrids] = useState<SubgridAdmin[]>([]);
+  const [confirmData, setConfirmData] = useState<{ title: string; message: string; action: () => void } | null>(null);
   const [tab, setTab] = useState<"users" | "reports" | "subgrids">("users");
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
@@ -386,7 +388,13 @@ export default function AdminPage() {
                             {s.is_nsfw ? "Unmark NSFW" : "Mark NSFW"}
                           </button>
                           <button
-                            onClick={() => { if (confirm(`Delete subgrid c/${s.name}?`)) doAction(`/api/admin/subgrids/${s.id}`, s.id, fetchSubgrids); }}
+                            onClick={() => {
+                              setConfirmData({
+                                title: "Delete Subgrid",
+                                message: `Are you sure you want to delete subgrid c/${s.name}? This action cannot be undone.`,
+                                action: () => doAction(`/api/admin/subgrids/${s.id}`, s.id, fetchSubgrids),
+                              });
+                            }}
                             disabled={actionLoading === s.id}
                             className="px-3 py-1.5 rounded-[8px] bg-red-500/20 text-red-400 text-[11px] font-bold hover:bg-red-500/30 transition-all"
                           >
@@ -447,6 +455,20 @@ export default function AdminPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {confirmData && (
+        <ConfirmModal
+          title={confirmData.title}
+          message={confirmData.message}
+          confirmText="Delete"
+          danger={true}
+          onConfirm={() => {
+            confirmData.action();
+            setConfirmData(null);
+          }}
+          onCancel={() => setConfirmData(null)}
+        />
       )}
 
       <div className="block md:hidden"><MobileNav /></div>

@@ -6,6 +6,9 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Timestamp from "@/components/Timestamp";
 import Avatar from "@/components/Avatar";
+import VerifiedBadge from "@/components/VerifiedBadge";
+import ImageViewer from "@/components/ImageViewer";
+import ConfirmModal from "@/components/ConfirmModal";
 import { useToast } from "@/components/ToastProvider";
 
 export interface PostAuthor {
@@ -23,6 +26,7 @@ export interface PostMedia {
 export interface PostSubgrid {
   name: string;
   display_name: string | null;
+  is_verified?: boolean;
 }
 
 export interface PostData {
@@ -59,12 +63,14 @@ export default function Post({
 }: PostData & { compact?: boolean }) {
   const router = useRouter();
   const [voteState, setVoteState] = useState<1 | -1 | 0>(user_vote as 1 | -1 | 0);
-  const [voteCount, setVoteCount] = useState(upvotes);
-  const [downvoteCount, setDownvoteCount] = useState(downvotes);
+  const [currentScore, setCurrentScore] = useState(score ?? (upvotes - downvotes));
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(content);
   const [displayContent, setDisplayContent] = useState(content);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     setDisplayContent(content);
@@ -85,17 +91,19 @@ export default function Post({
     const token = localStorage.getItem("access_token");
     if (!token) return;
     const next = voteState === value ? 0 : value;
+    
+    // Calculate score difference based on vote state change
+    let diff = 0;
+    if (voteState === 1 && next === 0) diff = -1;
+    else if (voteState === -1 && next === 0) diff = 1;
+    else if (voteState === 1 && next === -1) diff = -2;
+    else if (voteState === -1 && next === 1) diff = 2;
+    else if (voteState === 0 && next === 1) diff = 1;
+    else if (voteState === 0 && next === -1) diff = -1;
+
     setVoteState(next);
-    if (next === 1) {
-      setVoteCount((prev) => prev + 1);
-      if (voteState === -1) setDownvoteCount((prev) => prev - 1);
-    } else if (next === -1) {
-      setDownvoteCount((prev) => prev + 1);
-      if (voteState === 1) setVoteCount((prev) => prev - 1);
-    } else {
-      if (voteState === 1) setVoteCount((prev) => prev - 1);
-      if (voteState === -1) setDownvoteCount((prev) => prev - 1);
-    }
+    setCurrentScore((prev) => prev + diff);
+
     try {
       const res = await fetch(`/api/posts/${id}/vote?value=${value}`, {
         method: "POST",
@@ -103,18 +111,15 @@ export default function Post({
       });
       if (!res.ok) {
         setVoteState(voteState);
-        setVoteCount(upvotes);
-        setDownvoteCount(downvotes);
+        setCurrentScore((prev) => prev - diff);
       } else {
         const data = await res.json();
         setVoteState(data.value);
-        setVoteCount(data.upvotes);
-        setDownvoteCount(data.downvotes);
+        setCurrentScore(data.score ?? (data.upvotes - data.downvotes));
       }
     } catch {
       setVoteState(voteState);
-      setVoteCount(upvotes);
-      setDownvoteCount(downvotes);
+      setCurrentScore((prev) => prev - diff);
     }
   }
 
@@ -169,7 +174,6 @@ export default function Post({
   }
 
   async function handleDelete() {
-    if (!confirm("Are you sure you want to delete this post?")) return;
     const token = localStorage.getItem("access_token");
     if (!token) return;
     try {
@@ -247,9 +251,12 @@ export default function Post({
                   {author.display_name ?? author.username}
                 </Link>
                 {subgrid && (
-                  <Link href={`/subgrids/${subgrid.name}`} className="text-[13px] font-semibold text-[#FFD190] hover:underline">
-                    c/{subgrid.name}
-                  </Link>
+                  <div className="flex items-center gap-1">
+                    <Link href={`/subgrids/${subgrid.name}`} className="text-[13px] font-semibold text-[#FFD190] hover:underline">
+                      c/{subgrid.name}
+                    </Link>
+                    {subgrid.is_verified && <VerifiedBadge size={14} />}
+                  </div>
                 )}
               </div>
               <div className="flex items-center gap-1 text-[13px] text-white/40">
@@ -296,7 +303,7 @@ export default function Post({
                           Edit Post
                         </button>
                         <div className="h-px bg-white/[0.06]" />
-                        <button onClick={() => { handleDelete(); setMenuOpen(false); }} className="w-full px-4 py-3 text-left text-[14px] text-red-400 hover:bg-white/[0.06] transition-colors">
+                        <button onClick={() => { setShowDeleteConfirm(true); setMenuOpen(false); }} className="w-full px-4 py-3 text-left text-[14px] text-red-400 hover:bg-white/[0.06] transition-colors">
                           Delete Post
                         </button>
                       </>
@@ -346,6 +353,24 @@ export default function Post({
             >
               {displayContent}
             </div>
+            
+            {media && media.length > 0 && (
+              <div className="mt-4 rounded-xl overflow-hidden border border-white/10 relative max-h-[500px]">
+                {media.map((m, idx) => (
+                  <img 
+                    key={idx} 
+                    src={m.url} 
+                    alt="Post media" 
+                    className="w-full h-auto object-cover max-h-[500px] cursor-pointer hover:opacity-90 transition-opacity" 
+                    onClick={() => {
+                      setViewerIndex(idx);
+                      setViewerOpen(true);
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+
             {!isFullPage && (
               <Link
                 href={`/post/${id}`}
@@ -393,7 +418,7 @@ export default function Post({
               <path d="M12 19V5M5 12l7-7 7 7" />
             </svg>
           </button>
-          <span className="text-[13px] font-bold text-white/70 min-w-[20px] text-center">{voteCount}</span>
+          <span className="text-[13px] font-bold text-white/70 min-w-[20px] text-center">{currentScore}</span>
           <button
             onClick={() => handleVote(-1)}
             className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-200 hover:bg-white/[0.06] group ${
@@ -406,6 +431,26 @@ export default function Post({
           </button>
         </div>
       </div>
+      {viewerOpen && media && media.length > 0 && (
+        <ImageViewer
+          images={media.map((m) => m.url)}
+          initialIndex={viewerIndex}
+          onClose={() => setViewerOpen(false)}
+        />
+      )}
+      {showDeleteConfirm && (
+        <ConfirmModal
+          title="Delete Post"
+          message="Are you sure you want to delete this post? This action cannot be undone."
+          confirmText="Delete"
+          danger={true}
+          onConfirm={() => {
+            setShowDeleteConfirm(false);
+            handleDelete();
+          }}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
+      )}
     </div>
   );
 }

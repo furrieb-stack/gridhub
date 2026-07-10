@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "picsum.photos" },
       { protocol: "http", hostname: "localhost", port: "8000" },
       { protocol: "https", hostname: "gridhub-backend.onrender.com" },
+      { protocol: "https", hostname: "res.cloudinary.com" },
     ],
   },
   async headers() {
@@ -15,7 +16,7 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: "Content-Security-Policy",
-            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https://picsum.photos https://gridhub-backend.onrender.com http://localhost:8000; font-src 'self' data:; connect-src 'self' http://localhost:8000 https://gridhub-backend.onrender.com ws://localhost:8000 wss://gridhub-backend.onrender.com; media-src 'self' blob: data: http://localhost:8000 https://gridhub-backend.onrender.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; block-all-mixed-content; upgrade-insecure-requests;",
+            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https://picsum.photos https://gridhub-backend.onrender.com http://localhost:8000 https://res.cloudinary.com; font-src 'self' data:; connect-src 'self' http://localhost:8000 https://gridhub-backend.onrender.com ws://localhost:8000 wss://gridhub-backend.onrender.com; media-src 'self' blob: data: http://localhost:8000 https://gridhub-backend.onrender.com https://res.cloudinary.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; block-all-mixed-content; upgrade-insecure-requests;",
           },
           {
             key: "X-DNS-Prefetch-Control",
@@ -39,7 +40,7 @@ const nextConfig: NextConfig = {
           },
           {
             key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=(), browsing-topics=()",
+            value: "camera=(), microphone=(), geolocation=()",
           },
         ],
       },

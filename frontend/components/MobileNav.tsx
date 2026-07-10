@@ -137,7 +137,7 @@ export default function MobileNav() {
         </svg>
       </button>
 
-      <nav className="fixed bottom-6 inset-x-0 mx-auto w-[94%] max-w-[420px] z-50 block md:hidden backdrop-blur-[48px] bg-[#12110f]/85 rounded-full border border-white/[0.08] shadow-[0_20px_50px_rgba(0,0,0,0.85)]">
+      <nav className="fixed bottom-6 inset-x-0 mx-auto w-[94%] max-w-[420px] z-50 block md:hidden backdrop-blur-[60px] saturate-[180%] bg-[#12110f]/60 rounded-[32px] border border-white/[0.1] shadow-[0_30px_60px_rgba(0,0,0,0.85)]">
         <div className="flex items-center justify-between px-2.5 h-[72px]">
           {NAV_ITEMS.map((item) => {
             const active = pathname === item.href || (pathname === "/" && item.label === "Feed");

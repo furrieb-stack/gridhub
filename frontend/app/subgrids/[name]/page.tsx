@@ -10,6 +10,8 @@ import Navbar from "@/components/Navbar";
 import MobileNav from "@/components/MobileNav";
 import Post from "@/components/Post";
 import NewPostModal from "@/components/NewPostModal";
+import Avatar from "@/components/Avatar";
+import VerifiedBadge from "@/components/VerifiedBadge";
 
 const SESSION_CACHE_KEY = "subgrid_session_cache";
 
@@ -162,14 +164,13 @@ export default function SubgridPage() {
 
                 <div className="px-5 pb-5">
                   <div className="flex items-end justify-between -mt-8 mb-3">
-                    <div className="w-16 h-16 rounded-full border-4 border-[#12110f] overflow-hidden bg-white/10">
-                      {subgrid.avatar_url ? (
-                        <img src={mediaUrl(subgrid.avatar_url)} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <span className="text-white/30 text-[24px] font-bold">{subgrid.name.charAt(0).toUpperCase()}</span>
-                        </div>
-                      )}
+                    <div className="w-16 h-16 rounded-full border-4 border-[#12110f] overflow-hidden bg-white/10 relative">
+                      <Avatar
+                        src={subgrid.avatar_url}
+                        username={subgrid.name}
+                        displayName={subgrid.display_name}
+                        size={64}
+                      />
                     </div>
                     <button
                       onClick={handleSubscribe}
@@ -185,11 +186,7 @@ export default function SubgridPage() {
 
                   <h1 className="text-[22px] font-bold text-white flex items-center gap-2">
                     c/{subgrid.display_name ?? subgrid.name}
-                    {subgrid.is_verified && (
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="#FFD190">
-                        <path d="M20 6L9 17l-5-5" stroke="#12110f" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    )}
+                    {subgrid.is_verified && <VerifiedBadge size={20} />}
                   </h1>
                   {subgrid.description && (
                     <p className="text-white/60 text-[14px] mt-1 leading-relaxed">{subgrid.description}</p>

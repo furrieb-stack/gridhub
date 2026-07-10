@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { getStoredUser } from "@/lib/api";
+import Avatar from "@/components/Avatar";
 
 interface NewPostModalProps {
   onClose: () => void;
@@ -171,7 +172,6 @@ export default function NewPostModal({ onClose, subgridId }: NewPostModalProps) 
   }
 
   const canPost = (content.trim().length > 0 || files.length > 0) && !posting;
-  const initial = (user?.display_name ?? user?.username ?? "U").charAt(0).toUpperCase();
 
   return (
     <div
@@ -222,8 +222,13 @@ export default function NewPostModal({ onClose, subgridId }: NewPostModalProps) 
 
         <div className="px-5 md:px-6 py-4 flex-1 overflow-y-auto no-scrollbar">
           <div className="flex gap-3 h-full flex-col md:flex-row">
-            <div className="hidden md:flex w-10 h-10 rounded-full bg-[#FFD190] items-center justify-center shrink-0">
-              <span className="text-[15px] font-black text-[#12110f]">{initial}</span>
+            <div className="hidden md:flex w-10 h-10 rounded-full border-2 border-[#12110f] overflow-hidden shrink-0">
+              <Avatar
+                src={user?.avatar_url}
+                username={user?.username ?? ""}
+                displayName={user?.display_name}
+                size={40}
+              />
             </div>
             
             <div className="flex-1 flex flex-col min-w-0 h-full">

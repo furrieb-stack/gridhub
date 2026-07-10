@@ -31,7 +31,10 @@ function formatExact(date: Date): string {
 
 export default function Timestamp({ date, className }: TimestampProps) {
   const [showExact, setShowExact] = useState(false);
-  const d = typeof date === "string" ? new Date(date) : date;
+  let d = typeof date === "string" ? new Date(date) : date;
+  if (typeof date === "string" && !date.endsWith("Z") && !date.includes("+")) {
+    d = new Date(date + "Z");
+  }
   const relative = formatRelative(d);
   const exact = formatExact(d);
 

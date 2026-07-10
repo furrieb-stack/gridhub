@@ -200,54 +200,67 @@ async def yandex_callback(code: str, request: Request, db: Session = Depends(get
     if not YANDEX_CLIENT_ID or not YANDEX_CLIENT_SECRET:
         raise HTTPException(status_code=501, detail="Yandex OAuth not configured")
 
-    async with httpx.AsyncClient() as client:
-        token_res = await client.post(
-            "https://oauth.yandex.ru/token",
-            data={
-                "code": code,
-                "client_id": YANDEX_CLIENT_ID,
-                "client_secret": YANDEX_CLIENT_SECRET,
-                "grant_type": "authorization_code",
-            },
-            headers={"Accept": "application/json"},
-        )
-        if token_res.status_code != 200:
-            raise HTTPException(status_code=400, detail="Failed to exchange Yandex code")
+    try:
+        async with httpx.AsyncClient() as client:
+            token_res = await client.post(
+                "https://oauth.yandex.ru/token",
+                data={
+                    "code": code,
+                    "client_id": YANDEX_CLIENT_ID,
+                    "client_secret": YANDEX_CLIENT_SECRET,
+                    "grant_type": "authorization_code",
+                },
+                headers={"Accept": "application/json"},
+            )
+            if token_res.status_code != 200:
+                raise HTTPException(status_code=400, detail="Failed to exchange Yandex code")
 
-        token_data = token_res.json()
-        access_token = token_data.get("access_token")
+            token_data = token_res.json()
+            access_token = token_data.get("access_token")
 
-        user_res = await client.get(
-            "https://login.yandex.ru/info?format=json",
-            headers={"Authorization": f"OAuth {access_token}"},
-        )
-        if user_res.status_code != 200:
-            raise HTTPException(status_code=400, detail="Failed to fetch Yandex user info")
+            user_res = await client.get(
+                "https://login.yandex.ru/info?format=json",
+                headers={"Authorization": f"OAuth {access_token}"},
+            )
+            if user_res.status_code != 200:
+                raise HTTPException(status_code=400, detail="Failed to fetch Yandex user info")
 
-        user_info = user_res.json()
+            user_info = user_res.json()
+            
+        yandex_id = str(user_info.get("id"))
+        if not yandex_id or yandex_id == "None":
+            raise HTTPException(status_code=400, detail="Yandex did not return an ID")
+            
+        email = user_info.get("default_email") or f"{yandex_id}@yandex.oauth"
 
-    result = await _handle_oauth_callback(
-        db,
-        "yandex",
-        str(user_info["id"]),
-        user_info.get("default_email", ""),
-        user_info.get("display_name") or user_info.get("real_name"),
-    )
-
-    if result["status"] == "setup_required":
-        redirect_url = (
-            f"{OAUTH_FRONTEND_REDIRECT}/oauth/setup?token={result['setup_token']}"
-        )
-    else:
-        redirect_url = (
-            f"{OAUTH_FRONTEND_REDIRECT}/oauth/callback"
-            f"?access_token={result['access_token']}"
-            f"&refresh_token={result['refresh_token']}"
-            f"&user={result['user'].model_dump_json()}"
+        result = await _handle_oauth_callback(
+            db,
+            "yandex",
+            yandex_id,
+            email,
+            user_info.get("display_name") or user_info.get("real_name"),
         )
 
-    from fastapi.responses import RedirectResponse
-    return RedirectResponse(url=redirect_url)
+        if result["status"] == "setup_required":
+            redirect_url = (
+                f"{OAUTH_FRONTEND_REDIRECT}/oauth/setup?token={result['setup_token']}"
+            )
+        else:
+            import urllib.parse
+            user_json = urllib.parse.quote(result['user'].model_dump_json())
+            redirect_url = (
+                f"{OAUTH_FRONTEND_REDIRECT}/oauth/callback"
+                f"?access_token={result['access_token']}"
+                f"&refresh_token={result['refresh_token']}"
+                f"&user={user_json}"
+            )
+
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=redirect_url)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=400, detail=f"Yandex Auth Error: {str(e)}")
 
 
 # ── OAuth setup (username + password) ──

@@ -154,6 +154,8 @@ async def get_posts(
         if not followed_ids:
             return []
         query = query.filter(Post.user_id.in_(followed_ids))
+        # Randomize following feed
+        query = query.order_by(func.random())
     elif user_id:
         query = query.filter(Post.user_id == user_id)
     else:
@@ -197,17 +199,24 @@ async def get_posts(
     query = query.order_by(Post.is_pinned.desc())
 
     if sort == "new":
-        query = query.order_by(Post.created_at.desc())
+        # Randomize new posts (last 48 hours)
+        query = query.filter(Post.created_at > datetime.now(timezone.utc) - timedelta(hours=48))
+        query = query.order_by(func.random())
     elif sort == "top":
-        query = query.order_by(Post.score.desc())
+        # Randomize popular posts
+        query = query.filter(Post.score > 5)
+        query = query.order_by(func.random())
     elif sort == "hot":
         query = query.order_by(
             (func.log(Post.upvotes + 1) + (func.extract("epoch", Post.created_at) / 45000)).desc()
         )
     elif sort == "for_you":
-        # Instead of randomly shuffling top posts and looping them infinitely,
-        # we will provide a more deterministic feed using offset to respect existing posts limit.
-        posts = query.order_by(Post.score.desc()).offset(skip).limit(min(limit, 100)).all()
+        # 2 random popular, 1 random non-popular
+        popular = query.filter(Post.score >= 5).order_by(func.random()).limit(min(limit * 2 // 3, 66)).all()
+        non_popular = query.filter(Post.score < 5).order_by(func.random()).limit(min(limit // 3, 34)).all()
+        posts = popular + non_popular
+        import random
+        random.shuffle(posts)
         if not posts:
             return []
         post_ids = [p.id for p in posts]
@@ -478,18 +487,66 @@ async def get_post(
     view_count = db.query(func.count(PostView.id)).filter(PostView.post_id == post.id).scalar() or 0
     tags = list(set(re.findall(r"#[\wа-яёА-ЯЁ-]+", post.content)))
 
-    user_vote = db.query(Vote).filter(Vote.user_id == current_user.id, Vote.post_id == post.id).first()
+    user_vote = db.query(Vote).filter(Vote.user_id == current_user.id, Vote.post_id == post.id).first() if current_user else None
     vote_val = user_vote.value if user_vote else 0
 
-    result = PostResponse.model_validate(post)
-    result.media = media
-    result.comment_count = comment_count
-    result.view_count = view_count
-    result.like_count = post.upvotes
-    result.user_vote = vote_val
-    result.share_count = post.share_count if hasattr(post, 'share_count') else 0
-    result.tags = tags
+    author = db.query(User).filter(User.id == post.user_id).first()
+    author_dict = build_author_dict(author) if author else None
 
+    subgrid = None
+    if post.subgrid_id:
+        s = db.query(Subgrid).filter(Subgrid.id == post.subgrid_id).first()
+        if s:
+            owner = db.query(User).filter(User.id == s.owner_id).first()
+            subscriber_count = db.query(func.count(SubgridSubscription.id)).filter(SubgridSubscription.subgrid_id == s.id).scalar() or 0
+            moderator_count = db.query(func.count(SubgridModerator.id)).filter(SubgridModerator.subgrid_id == s.id).scalar() or 0
+            subgrid = SubgridResponse(
+                id=s.id,
+                name=s.name,
+                display_name=s.display_name,
+                description=s.description,
+                avatar_url=s.avatar_url,
+                banner_url=s.banner_url,
+                is_verified=s.is_verified,
+                is_nsfw=s.is_nsfw,
+                owner_id=s.owner_id,
+                owner=owner,
+                subscriber_count=subscriber_count,
+                moderator_count=moderator_count,
+                created_at=s.created_at,
+            )
+
+    flair = None
+    if post.flair_id:
+        f = db.query(Flair).filter(Flair.id == post.flair_id).first()
+        if f:
+            flair = {"name": f.name, "color": f.color}
+
+    post_dict = {
+        "id": post.id,
+        "title": post.title,
+        "content": post.content,
+        "user_id": post.user_id,
+        "subgrid_id": post.subgrid_id,
+        "subgrid": subgrid,
+        "flair": flair,
+        "media": media,
+        "upvotes": post.upvotes,
+        "downvotes": post.downvotes,
+        "score": post.score,
+        "user_vote": vote_val,
+        "share_count": post.share_count if hasattr(post, 'share_count') else 0,
+        "comment_count": comment_count,
+        "is_pinned": post.is_pinned,
+        "like_count": post.upvotes,
+        "view_count": view_count,
+        "tags": tags,
+        "created_at": post.created_at,
+        "updated_at": post.updated_at,
+        "author": author_dict,
+    }
+    
+    result = PostResponse(**post_dict)
     await cache_post(post_id, result.model_dump())
     return result
 

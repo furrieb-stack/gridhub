@@ -50,18 +50,48 @@ class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const token =
+async function request<T>(path: string, options?: RequestInit, isRetry = false): Promise<T> {
+  let token =
     typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
 
-  const res = await fetch(`${API_BASE}${path}`, {
+  const doFetch = async (t: string | null) => fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
       ...(options?.headers ?? {}),
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(t ? { Authorization: `Bearer ${t}` } : {}),
     },
   });
+
+  let res = await doFetch(token);
+
+  if (res.status === 401 && !isRetry) {
+    const refreshToken = typeof window !== "undefined" ? localStorage.getItem("refresh_token") : null;
+    if (refreshToken) {
+      try {
+        const refreshRes = await fetch(`${API_BASE}/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        });
+        if (refreshRes.ok) {
+          const newTokens: TokenResponse = await refreshRes.json();
+          saveTokens(newTokens.access_token, newTokens.refresh_token, newTokens.user);
+          token = newTokens.access_token;
+          res = await doFetch(token);
+        } else {
+          clearTokens();
+          if (typeof window !== "undefined") window.location.href = "/login";
+        }
+      } catch (e) {
+        clearTokens();
+        if (typeof window !== "undefined") window.location.href = "/login";
+      }
+    } else {
+      clearTokens();
+      if (typeof window !== "undefined") window.location.href = "/login";
+    }
+  }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));

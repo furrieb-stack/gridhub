@@ -9,16 +9,26 @@ from app.schemas.subgrid import SubgridResponse
 
 class PostCreate(BaseModel):
     title: Optional[str] = Field(None, max_length=100)
-    content: str = Field(..., min_length=1, max_length=10000)
-    subgrid_id: Optional[int] = None
-    flair_id: Optional[int] = None
-    media_ids: Optional[list[int]] = None
+    content: str = Field(..., min_length=0, max_length=10000)
+    subgrid_id: Optional[int] = Field(None, ge=1)
+    flair_id: Optional[int] = Field(None, ge=1)
+    media_ids: Optional[list[int]] = Field(None, max_length=10)
+
+    model_config = {
+        "extra": "forbid",
+        "str_strip_whitespace": True
+    }
 
 
 class PostUpdate(BaseModel):
     title: Optional[str] = Field(None, max_length=100)
-    content: Optional[str] = Field(None, min_length=1, max_length=10000)
-    flair_id: Optional[int] = None
+    content: Optional[str] = Field(None, min_length=0, max_length=10000)
+    flair_id: Optional[int] = Field(None, ge=1)
+
+    model_config = {
+        "extra": "forbid",
+        "str_strip_whitespace": True
+    }
 
 
 class PostResponse(BaseModel):

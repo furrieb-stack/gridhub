@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { getStoredUser, setStoredUser, mediaUrl, type User } from "@/lib/api";
 import Navbar from "@/components/Navbar";
 import MobileNav from "@/components/MobileNav";
+import Avatar from "@/components/Avatar";
+import ConfirmModal from "@/components/ConfirmModal";
 import ImageCropperModal from "@/components/ImageCropperModal";
 
 function SectionIcon({ id, active }: { id: string; active: boolean }) {
@@ -547,34 +549,14 @@ export default function SettingsPage() {
       )}
 
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => !deleting && setShowDeleteConfirm(false)}>
-          <div className="bg-[#1a1a1a] rounded-[24px] w-full max-w-[400px] mx-4 overflow-hidden border border-white/[0.08] shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="px-6 py-5 border-b border-white/[0.06]">
-              <h2 className="text-white text-[18px] font-bold">Delete Account</h2>
-            </div>
-            <div className="px-6 py-5">
-              <p className="text-white/70 text-[15px] leading-relaxed">
-                Are you sure you want to permanently delete your account? This action cannot be undone. All your posts, comments, and data will be removed.
-              </p>
-            </div>
-            <div className="px-6 py-4 border-t border-white/[0.06] flex justify-end gap-3">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                disabled={deleting}
-                className="px-5 py-2.5 rounded-[12px] text-white/60 hover:text-white hover:bg-white/5 transition-colors text-[14px] font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={deleteAccount}
-                disabled={deleting}
-                className="px-5 py-2.5 rounded-[12px] bg-red-500 text-white text-[14px] font-bold hover:bg-red-600 transition-all disabled:opacity-50"
-              >
-                {deleting ? "Deleting..." : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmModal
+          title="Delete Account"
+          message="Are you sure you want to permanently delete your account? This action cannot be undone. All your posts, comments, and data will be removed."
+          confirmText={deleting ? "Deleting..." : "Delete"}
+          danger={true}
+          onConfirm={deleteAccount}
+          onCancel={() => !deleting && setShowDeleteConfirm(false)}
+        />
       )}
     </div>
   );
