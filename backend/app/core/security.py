@@ -91,3 +91,16 @@ def check_rate_limit(ip: str, db: Session, max_attempts: int = 5, window_minutes
         .count()
     )
     return attempts < max_attempts
+
+def check_account_lockout(username: str, db: Session, max_attempts: int = 5, window_minutes: int = 15) -> bool:
+    window = datetime.now(timezone.utc) - timedelta(minutes=window_minutes)
+    attempts = (
+        db.query(LoginAttempt)
+        .filter(
+            LoginAttempt.username == username,
+            LoginAttempt.attempted_at > window,
+            LoginAttempt.success == False,
+        )
+        .count()
+    )
+    return attempts < max_attempts

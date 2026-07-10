@@ -51,7 +51,9 @@ export default function StoryUploadModal({ onClose, onStoryCreated }: StoryUploa
     setError("");
 
     try {
-      const storyFile = new File([blob], "story.jpg", { type: blob.type || "image/jpeg" });
+      const isVideo = blob.type.startsWith("video/");
+      const ext = isVideo ? "mp4" : "jpg";
+      const storyFile = new File([blob], `story.${ext}`, { type: blob.type || "image/jpeg" });
       await uploadStory(storyFile);
       onStoryCreated();
       handleClose();
@@ -113,7 +115,7 @@ export default function StoryUploadModal({ onClose, onStoryCreated }: StoryUploa
           )}
 
           <div>
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFilePick} />
+            <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFilePick} />
             <button
               onClick={pickFile}
               disabled={uploading}

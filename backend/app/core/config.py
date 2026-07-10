@@ -5,6 +5,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
+
+if ENVIRONMENT == "production" and not os.getenv("SECRET_KEY"):
+    raise ValueError("SECRET_KEY environment variable is mandatory in production!")
+
 SECRET_KEY = os.getenv("SECRET_KEY", secrets.token_urlsafe(64))
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24

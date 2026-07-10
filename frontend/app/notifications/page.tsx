@@ -61,6 +61,25 @@ function getNotificationLabel(type: string): string {
   }
 }
 
+function getNotificationMessage(n: NotificationData): React.ReactNode {
+  if (!n.data) return getNotificationLabel(n.type);
+  
+  if (n.type === "upvote" || n.type === "like") {
+    return <><span className="font-semibold text-white">{n.data.user as string}</span> upvoted your post "{n.data.post_title as string}"</>;
+  }
+  if (n.type === "comment") {
+    return <><span className="font-semibold text-white">{n.data.comment_author as string}</span> commented on "{n.data.post_title as string}": <span className="text-white/60 italic">"{n.data.content_preview as string}"</span></>;
+  }
+  if (n.type === "follow") {
+    return <><span className="font-semibold text-white">{n.data.user as string}</span> followed you</>;
+  }
+  if (n.type === "subgrid_moderator") {
+    return <>You were made a moderator of <span className="font-semibold text-white">{n.data.subgrid_name as string || "a community"}</span></>;
+  }
+  
+  return (n.data.message as React.ReactNode) ?? getNotificationLabel(n.type);
+}
+
 export default function NotificationsPage() {
   const router = useRouter();
   const { addToast } = useToast();
@@ -195,7 +214,7 @@ export default function NotificationsPage() {
                     <p className={`text-[14px] leading-relaxed ${
                       n.read ? "text-white/50" : "text-white/80"
                     }`}>
-                      {n.data?.message as string ?? getNotificationLabel(n.type)}
+                      {getNotificationMessage(n)}
                     </p>
                     <div className="flex items-center gap-2 mt-1">
                       <span className="text-white/25 text-[12px]">

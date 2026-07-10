@@ -59,9 +59,23 @@ async def delete_account(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    db.delete(current_user)
-    db.commit()
-    return {"message": "Account deleted"}
+    from app.core.redis import redis_client
+    delete_key = f"pending_delete:{current_user.id}"
+    await redis_client.setex(delete_key, 86400, json.dumps({"username": current_user.username, "requested_at": datetime.now(timezone.utc).isoformat()}))
+    return {"message": "Account deletion scheduled. You have 24 hours to cancel.", "cancel_token": current_user.id}
+
+
+@router.post("/me/cancel-delete")
+async def cancel_delete(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    from app.core.redis import redis_client
+    delete_key = f"pending_delete:{current_user.id}"
+    existed = await redis_client.delete(delete_key)
+    if not existed:
+        raise HTTPException(400, "No pending deletion found")
+    return {"message": "Account deletion cancelled"}
 
 
 @router.post("/verification-request")
@@ -154,6 +168,11 @@ async def get_user_by_username(
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_optional_user),
 ):
+    from app.core.redis import get_cached_user_profile, cache_user_profile
+    if current_user and current_user.username != username:
+        cached = await get_cached_user_profile(username)
+        if cached:
+            return ProfileResponse(**cached)
     user = db.query(User).filter(User.username == username).first()
     if not user or user.is_banned:
         raise HTTPException(status_code=404, detail="User not found")
@@ -171,7 +190,7 @@ async def get_user_by_username(
         )
         is_following = follow is not None
 
-    return ProfileResponse(
+    profile = ProfileResponse(
         id=user.id,
         username=user.username,
         display_name=user.display_name,
@@ -186,6 +205,9 @@ async def get_user_by_username(
         is_own_profile=current_user is not None and current_user.id == user.id,
         created_at=user.created_at,
     )
+    if not profile.is_own_profile:
+        await cache_user_profile(username, profile.model_dump())
+    return profile
 
 
 @router.post("/{user_id}/follow")
@@ -254,7 +276,10 @@ async def get_follow_counts(
 
 @router.get("/top-list")
 async def get_top_users(db: Session = Depends(get_db)):
-    print("GET_TOP_USERS CALLED", flush=True)
+    from app.core.redis import get_cached_users, cache_users
+    cached = await get_cached_users()
+    if cached:
+        return cached
     users = (
         db.query(User, func.coalesce(Karma.post_karma, 0) + func.coalesce(Karma.comment_karma, 0))
         .outerjoin(Karma, Karma.user_id == User.id)
@@ -263,7 +288,7 @@ async def get_top_users(db: Session = Depends(get_db)):
         .limit(20)
         .all()
     )
-    return [
+    result = [
         {
             "id": u.id,
             "username": u.username,
@@ -275,6 +300,8 @@ async def get_top_users(db: Session = Depends(get_db)):
         }
         for u, karma_total in users
     ]
+    await cache_users(result)
+    return result
 
 
 @router.get("/{user_id}/karma", response_model=KarmaResponse)

@@ -8,10 +8,10 @@ import MobileNav from "@/components/MobileNav";
 import Stories from "@/components/Stories";
 import Post from "@/components/Post";
 
-type SortMode = "new" | "hot" | "top";
 
-const FILTERS: { label: string; sort: SortMode }[] = [
-  { label: "For You", sort: "hot" },
+
+const FILTERS: { label: string; sort: string }[] = [
+  { label: "For You", sort: "for_you" },
   { label: "Following", sort: "new" },
   { label: "New", sort: "new" },
   { label: "Top", sort: "top" },
@@ -44,20 +44,20 @@ export default function FeedPage() {
   const initialLoadDone = useRef(false);
 
   const observer = useRef<IntersectionObserver | null>(null);
-  const loadingRef = useRef(false);
-  useEffect(() => { loadingRef.current = loading; }, [loading]);
+  const hasMoreRef = useRef(hasMore);
+  useEffect(() => { hasMoreRef.current = hasMore; }, [hasMore]);
   const lastPostRef = useCallback(
     (node: HTMLDivElement) => {
       if (observer.current) observer.current.disconnect();
       if (!node) return;
       observer.current = new IntersectionObserver((entries) => {
-        if (entries[0].isIntersecting && hasMore && !loadingRef.current) {
+        if (entries[0].isIntersecting && hasMoreRef.current) {
           setSkip((prev) => prev + 5);
         }
       });
       observer.current.observe(node);
     },
-    [hasMore]
+    []
   );
 
   const mapPost = useCallback((p: any) => ({
@@ -148,6 +148,7 @@ export default function FeedPage() {
     document.title = "Feed | Gridhub";
     const stored = getStoredUser();
     if (!stored) router.replace("/login");
+    else if (stored.is_banned) router.replace("/banned");
     else setUser(stored);
   }, [router]);
 

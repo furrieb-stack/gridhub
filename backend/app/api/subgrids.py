@@ -52,6 +52,11 @@ async def get_subgrids(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_optional_user),
 ):
+    from app.core.redis import get_cached_subgrids, cache_subgrids
+    if not search and skip == 0:
+        cached = await get_cached_subgrids()
+        if cached:
+            return cached
     query = db.query(Subgrid)
     if search:
         query = query.filter(
@@ -89,6 +94,8 @@ async def get_subgrids(
         }
         result.append(SubgridResponse(**subgrid_dict))
 
+    if not search and skip == 0:
+        await cache_subgrids([r.model_dump() for r in result])
     return result
 
 
@@ -152,6 +159,19 @@ async def get_subgrid_by_name(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_optional_user),
 ):
+    from app.core.redis import get_cached_subgrid_detail, cache_subgrid_detail
+    cached = await get_cached_subgrid_detail(name)
+    if cached and current_user:
+        cached["is_subscribed"] = (
+            db.query(SubgridSubscription)
+            .filter(
+                SubgridSubscription.subgrid_id == cached["id"],
+                SubgridSubscription.user_id == current_user.id,
+            )
+            .first()
+            is not None
+        )
+        return SubgridResponse(**cached)
     subgrid = db.query(Subgrid).filter(Subgrid.name == name).first()
     if not subgrid:
         raise HTTPException(404, "Subgrid not found")
@@ -179,6 +199,7 @@ async def get_subgrid_by_name(
         .first()
         is not None
     )
+    await cache_subgrid_detail(name, result.model_dump())
     return result
 
 

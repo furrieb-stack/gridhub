@@ -102,8 +102,13 @@ export default function SubgridsPage() {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-white text-[15px] font-bold truncate">
+                    <p className="text-white text-[15px] font-bold truncate flex items-center gap-1">
                       c/{sg.display_name ?? sg.name}
+                      {sg.is_verified && (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="#FFD190" className="shrink-0">
+                          <path d="M20 6L9 17l-5-5" stroke="#12110f" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
                     </p>
                     <p className="text-white/40 text-[13px] truncate">{sg.subscriber_count} members</p>
                   </div>

@@ -183,7 +183,14 @@ export default function SubgridPage() {
                     </button>
                   </div>
 
-                  <h1 className="text-[22px] font-bold text-white">c/{subgrid.display_name ?? subgrid.name}</h1>
+                  <h1 className="text-[22px] font-bold text-white flex items-center gap-2">
+                    c/{subgrid.display_name ?? subgrid.name}
+                    {subgrid.is_verified && (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="#FFD190">
+                        <path d="M20 6L9 17l-5-5" stroke="#12110f" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </h1>
                   {subgrid.description && (
                     <p className="text-white/60 text-[14px] mt-1 leading-relaxed">{subgrid.description}</p>
                   )}

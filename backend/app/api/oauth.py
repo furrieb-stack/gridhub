@@ -92,7 +92,7 @@ async def _handle_oauth_callback(
         oauth_id=provider_id,
         oauth_setup_complete=False,
         is_active=True,
-        is_verified=True,
+        is_verified=False,
     )
     db.add(new_user)
     db.commit()

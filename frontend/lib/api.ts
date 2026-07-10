@@ -66,6 +66,13 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     const detail = body.detail;
+    if (res.status === 403 && typeof detail === "string" && detail.toLowerCase().includes("banned")) {
+      if (typeof window !== "undefined") {
+        clearTokens();
+        sessionStorage.setItem("ban_reason", detail);
+        window.location.href = "/banned";
+      }
+    }
     const message = Array.isArray(detail)
       ? detail.map((d: { msg: string }) => d.msg).join("; ")
       : detail ?? "Request failed";

@@ -12,7 +12,9 @@ from app.core.security import (
     verify_token,
     log_login_attempt,
     check_rate_limit,
+    check_account_lockout,
 )
+import re
 from app.core.deps import limiter, get_current_active_user
 from app.schemas.auth import (
     UserRegister,
@@ -52,6 +54,14 @@ async def register(request: Request, user_data: UserRegister, db: Session = Depe
             detail="Only email providers like Gmail, Yandex, Proton, Outlook, iCloud, Yahoo are allowed",
         )
 
+    # Password complexity check
+    pw = user_data.password
+    if len(pw) < 12 or not re.search(r"[A-Z]", pw) or not re.search(r"[a-z]", pw) or not re.search(r"[0-9]", pw) or not re.search(r"[!@#$%^&*(),.?\":{}|<>]", pw):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 12 characters long and contain uppercase, lowercase, digit, and special character",
+        )
+
     existing_user = (
         db.query(User)
         .filter((User.username == user_data.username) | (User.email == user_data.email))
@@ -89,6 +99,12 @@ async def login(request: Request, user_data: UserLogin, db: Session = Depends(ge
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many login attempts. Please try again later.",
+        )
+
+    if not check_account_lockout(user_data.username.lower(), db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is locked due to too many failed login attempts. Try again later.",
         )
 
     if check_ip_ban(ip, db):

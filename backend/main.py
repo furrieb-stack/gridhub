@@ -1,5 +1,7 @@
 import os
 import time
+import json
+import asyncio
 import logging
 
 from fastapi import FastAPI, Request
@@ -7,40 +9,43 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pathlib import Path as FilePath
+from sqlalchemy.orm import Session
 
-from database import create_tables
+from database import create_tables, get_db, User
 from app.core.config import ALLOWED_ORIGINS, MAX_REQUESTS_PER_MINUTE, MAX_UPLOAD_SIZE
 from app.core.deps import limiter, rate_limit_handler
 from app.core.security import hash_password
 from app.core.redis import redis_client, redis_pool
 from app.api.router import api_router
-from database import User, get_db
 from app.services.upload import VIDEO_EXTENSIONS, AUDIO_EXTENSIONS
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
+ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
+
 app = FastAPI(
     title="Gridhub API",
     description="Social network backend for Gridhub",
     version="3.1.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url=None if ENVIRONMENT == "production" else "/docs",
+    redoc_url=None if ENVIRONMENT == "production" else "/redoc",
+    openapi_url=None if ENVIRONMENT == "production" else "/openapi.json",
 )
 
 app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=["localhost", "127.0.0.1", "*.gridhub.com"]
-    + os.getenv("ALLOWED_HOSTS", "").split(","),
+    + [h for h in os.getenv("ALLOWED_HOSTS", "").split(",") if h],
 )
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin"],
+    expose_headers=["Content-Disposition", "X-Response-Time"],
     max_age=3600,
 )
 
@@ -72,9 +77,11 @@ async def security_headers_middleware(request: Request, call_next):
 
     if request.method == "OPTIONS":
         response = JSONResponse(content="ok", status_code=200)
-        response.headers["Access-Control-Allow-Origin"] = request.headers.get("origin", "http://localhost:3000")
-        response.headers["Access-Control-Allow-Methods"] = "*"
-        response.headers["Access-Control-Allow-Headers"] = "*"
+        origin = request.headers.get("origin")
+        if origin in ALLOWED_ORIGINS or "*" in ALLOWED_ORIGINS:
+            response.headers["Access-Control-Allow-Origin"] = origin or "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, X-Requested-With, Accept, Origin"
         response.headers["Access-Control-Allow-Credentials"] = "true"
         return response
 
@@ -129,10 +136,39 @@ def create_admin_user():
         logger.info("Admin already exists")
 
 
+async def process_pending_deletions():
+    while True:
+        try:
+            keys = await redis_client.keys("pending_delete:*")
+            for key in keys:
+                user_id = int(key.split(":")[-1])
+                data = await redis_client.get(key)
+                if data:
+                    info = json.loads(data)
+                    logger.info(f"Processing pending deletion for user {user_id} ({info.get('username')})")
+                    from sqlalchemy.orm import Session
+                    from database import SessionLocal
+                    db = SessionLocal()
+                    try:
+                        user = db.query(User).filter(User.id == user_id).first()
+                        if user:
+                            db.delete(user)
+                            db.commit()
+                            logger.info(f"User {user_id} deleted after 24h")
+                    finally:
+                        db.close()
+                    await redis_client.delete(key)
+        except Exception as e:
+            logger.error(f"Pending deletion error: {e}")
+        await asyncio.sleep(60)
+
+
 @app.on_event("startup")
 def startup():
     create_tables()
     create_admin_user()
+    loop = asyncio.get_event_loop()
+    loop.create_task(process_pending_deletions())
     logger.info("Gridhub API started successfully")
 
 
