@@ -4,6 +4,7 @@ from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field, validator
 
+FORBIDDEN_WORDS = ["gridhub", "admin", "dev", "moderator", "support", "help", "system", "root"]
 
 class UserRegister(BaseModel):
     username: str = Field(..., min_length=3, max_length=30)
@@ -15,8 +16,12 @@ class UserRegister(BaseModel):
     def validate_username(cls, v):
         if not re.match(r"^[a-zA-Z0-9_.-]+$", v):
             raise ValueError("Username can only contain letters, numbers, dots, underscores and hyphens")
-        if v.lower() in ["admin", "moderator", "support", "help", "system"]:
-            raise ValueError("Username is reserved")
+        
+        v_lower = v.lower()
+        for word in FORBIDDEN_WORDS:
+            if word in v_lower:
+                raise ValueError(f"Username contains reserved word or part")
+        
         return v
 
     @validator("password")
@@ -124,8 +129,12 @@ class OAuthSetupRequest(BaseModel):
     def validate_username(cls, v):
         if not re.match(r"^[a-zA-Z0-9_.-]+$", v):
             raise ValueError("Username can only contain letters, numbers, dots, underscores and hyphens")
-        if v.lower() in ["admin", "moderator", "support", "help", "system"]:
-            raise ValueError("Username is reserved")
+        
+        v_lower = v.lower()
+        for word in FORBIDDEN_WORDS:
+            if word in v_lower:
+                raise ValueError(f"Username contains reserved word or part")
+        
         return v
 
     @validator("password")
