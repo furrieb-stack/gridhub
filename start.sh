@@ -19,7 +19,7 @@ cat /tmp/frontend.log
 echo "=== backend log: ==="
 cat /tmp/backend.log
 
-sed "s/8080/${PORT:-8080}/g; s/localhost:3000/localhost:3456/g" \
+sed "s/8080/${PORT:-8080}/g; s/127.0.0.1:3000/127.0.0.1:3456/g" \
     /etc/nginx/nginx.conf > /tmp/nginx.conf
 mv /tmp/nginx.conf /etc/nginx/nginx.conf
 
